@@ -46,6 +46,8 @@ export const create = mutation({
       anamneseStatus: "approved",
       teeth: [],
       procedures: [],
+      periodontalExams: [],
+      plaqueExams: [],
       signatures: [],
       status: "em_andamento",
       updatedAt: now,

@@ -42,6 +42,7 @@ import {
 import { Odontogram } from "@/components/odontogram/Odontogram";
 import { ToothEditor } from "@/components/odontogram/ToothEditor";
 import { SignaturePad } from "@/components/SignaturePad";
+import { PeriogramaTab, PlaqueTab } from "@/components/periodontal/PeriodontalTabs";
 import {
   ArrowLeft,
   Check,
@@ -85,8 +86,15 @@ export default function PatientRecord() {
   const pendingTeeth = prontuario.teeth.flatMap((t) =>
     t.treatments.filter((tr) => tr.status === "pending"),
   ).length;
+  const pendingPerio = (prontuario.periodontalExams ?? []).filter(
+    (e) => e.status === "pending",
+  ).length;
+  const pendingPlaque = (prontuario.plaqueExams ?? []).filter(
+    (e) => e.status === "pending",
+  ).length;
   const pendingTotal =
     pendingAttachments.length + pendingProcedures.length + pendingTeeth +
+    pendingPerio + pendingPlaque +
     (prontuario.anamneseStatus === "pending" ? 1 : 0);
 
   return (
@@ -170,6 +178,22 @@ export default function PatientRecord() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="periograma">
+              Periograma
+              {pendingPerio > 0 && (
+                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
+                  ·{pendingPerio}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="placa">
+              Índice de placa
+              {pendingPlaque > 0 && (
+                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
+                  ·{pendingPlaque}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="anexos">
               Anexos
               {pendingAttachments.length > 0 && (
@@ -215,6 +239,24 @@ export default function PatientRecord() {
             <ProceduresTab
               patientId={patient._id as never}
               procedures={prontuario.procedures}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+              currentUserId={user?._id}
+            />
+          </TabsContent>
+          <TabsContent value="periograma" className="mt-4">
+            <PeriogramaTab
+              patientId={patient._id as never}
+              exams={prontuario.periodontalExams ?? []}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+              currentUserId={user?._id}
+            />
+          </TabsContent>
+          <TabsContent value="placa" className="mt-4">
+            <PlaqueTab
+              patientId={patient._id as never}
+              exams={prontuario.plaqueExams ?? []}
               canEdit={permissions.canEdit}
               canApprove={permissions.canApprove}
               currentUserId={user?._id}

@@ -208,6 +208,152 @@ export const procedureValidator = v.object({
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// Periograma — sondagem periodontal (6 sítios por dente)
+// ────────────────────────────────────────────────────────────────────────────
+export interface PeriodontalSite {
+  mv: number; // mesiovestibular
+  v: number; // vestibular
+  dv: number; // distovestibular
+  ml: number; // mesiolingual
+  l: number; // lingual
+  dl: number; // distolingual
+}
+
+export const periodontalSiteValidator = v.object({
+  mv: v.number(),
+  v: v.number(),
+  dv: v.number(),
+  ml: v.number(),
+  l: v.number(),
+  dl: v.number(),
+});
+
+export const emptyPeriodontalSite = (): PeriodontalSite => ({
+  mv: 0,
+  v: 0,
+  dv: 0,
+  ml: 0,
+  l: 0,
+  dl: 0,
+});
+
+export interface PeriodontalTooth {
+  tooth: number;
+  pockets: PeriodontalSite; // profundidade de sondagem (mm)
+  recession: PeriodontalSite; // recessão gengival (mm)
+  mobility: number; // mobilidade 0–3
+  furcation: number; // grau de furca 0–3
+  bleeding: boolean; // sangramento à sondagem
+}
+
+export const periodontalToothValidator = v.object({
+  tooth: v.number(),
+  pockets: periodontalSiteValidator,
+  recession: periodontalSiteValidator,
+  mobility: v.number(),
+  furcation: v.number(),
+  bleeding: v.boolean(),
+});
+
+export const emptyPeriodontalTooth = (tooth: number): PeriodontalTooth => ({
+  tooth,
+  pockets: emptyPeriodontalSite(),
+  recession: emptyPeriodontalSite(),
+  mobility: 0,
+  furcation: 0,
+  bleeding: false,
+});
+
+export interface PeriodontalExam {
+  id: string;
+  date: string;
+  teeth: PeriodontalTooth[];
+  status: TreatmentStatus;
+  createdBy: Id<"users">;
+  createdByName: string;
+  updatedAt: number;
+}
+
+export const periodontalExamValidator = v.object({
+  id: v.string(),
+  date: v.string(),
+  teeth: v.array(periodontalToothValidator),
+  status: treatmentStatusValidator,
+  createdBy: v.id("users"),
+  createdByName: v.string(),
+  updatedAt: v.number(),
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Índice de placa — O'Leary (4 superfícies por dente)
+// ────────────────────────────────────────────────────────────────────────────
+export interface PlaqueTooth {
+  tooth: number;
+  mesial: boolean;
+  distal: boolean;
+  vestibular: boolean;
+  lingual: boolean;
+}
+
+export const plaqueToothValidator = v.object({
+  tooth: v.number(),
+  mesial: v.boolean(),
+  distal: v.boolean(),
+  vestibular: v.boolean(),
+  lingual: v.boolean(),
+});
+
+export const emptyPlaqueTooth = (tooth: number): PlaqueTooth => ({
+  tooth,
+  mesial: false,
+  distal: false,
+  vestibular: false,
+  lingual: false,
+});
+
+export interface PlaqueExam {
+  id: string;
+  date: string;
+  teeth: PlaqueTooth[];
+  status: TreatmentStatus;
+  createdBy: Id<"users">;
+  createdByName: string;
+  updatedAt: number;
+}
+
+export const plaqueExamValidator = v.object({
+  id: v.string(),
+  date: v.string(),
+  teeth: v.array(plaqueToothValidator),
+  status: treatmentStatusValidator,
+  createdBy: v.id("users"),
+  createdByName: v.string(),
+  updatedAt: v.number(),
+});
+
+/** Percentual O'Leary: superfícies com placa / superfícies examinadas. */
+export function oLearyIndex(teeth: PlaqueTooth[]): {
+  percent: number;
+  withPlaque: number;
+  total: number;
+} {
+  let withPlaque = 0;
+  let total = 0;
+  for (const t of teeth) {
+    total += 4;
+    if (t.mesial) withPlaque++;
+    if (t.distal) withPlaque++;
+    if (t.vestibular) withPlaque++;
+    if (t.lingual) withPlaque++;
+  }
+  return {
+    percent: total === 0 ? 0 : Math.round((withPlaque / total) * 100),
+    withPlaque,
+    total,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Assinaturas — ordem: paciente → aluno → professor
 // ────────────────────────────────────────────────────────────────────────────
 export const SIGNATURE_ROLES = ["paciente", "aluno", "professor"] as const;

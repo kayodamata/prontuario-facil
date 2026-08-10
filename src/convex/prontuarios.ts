@@ -5,9 +5,13 @@ import {
   classeValidator,
   emptyAnamnese,
   materialValidator,
+  periodontalExamValidator,
+  plaqueExamValidator,
   signatureRoleValidator,
   treatmentTypeValidator,
   type Anamnese,
+  type PeriodontalExam,
+  type PlaqueExam,
   type SignatureRole,
   type ToothRecord,
 } from "./shared";
@@ -81,6 +85,8 @@ export const get = query({
           anamneseDraft: undefined,
           teeth: [],
           procedures: [],
+          periodontalExams: [],
+          plaqueExams: [],
           signatures: [],
         }
       : prontuario;
@@ -416,6 +422,181 @@ export const removeProcedure = mutation({
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// Periograma — sondagem periodontal
+// ────────────────────────────────────────────────────────────────────────────
+
+export const savePeriodontal = mutation({
+  args: {
+    patientId: v.id("patients"),
+    date: v.string(),
+    teeth: v.array(v.object({
+      tooth: v.number(),
+      pockets: v.object({
+        mv: v.number(), v: v.number(), dv: v.number(),
+        ml: v.number(), l: v.number(), dl: v.number(),
+      }),
+      recession: v.object({
+        mv: v.number(), v: v.number(), dv: v.number(),
+        ml: v.number(), l: v.number(), dl: v.number(),
+      }),
+      mobility: v.number(),
+      furcation: v.number(),
+      bleeding: v.boolean(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    const exam: PeriodontalExam = {
+      id: newId(),
+      date: args.date || new Date().toISOString().slice(0, 10),
+      teeth: args.teeth.filter((t) =>
+        // guarda apenas dentes com algum dado registrado
+        t.pockets.mv + t.pockets.v + t.pockets.dv + t.pockets.ml + t.pockets.l + t.pockets.dl > 0 ||
+        t.bleeding ||
+        t.mobility > 0 ||
+        t.furcation > 0,
+      ),
+      status: user.role === "professor" ? "approved" : "pending",
+      createdBy: userId,
+      createdByName: user.name ?? "Usuário",
+      updatedAt: Date.now(),
+    };
+    await ctx.db.patch(prontuario._id, {
+      periodontalExams: [...prontuario.periodontalExams, exam],
+      updatedAt: Date.now(),
+    });
+    return exam.id;
+  },
+});
+
+export const approvePeriodontal = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "professor");
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      periodontalExams: prontuario.periodontalExams.map((e) =>
+        e.id === args.examId ? { ...e, status: "approved" as const } : e,
+      ),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const rejectPeriodontal = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "professor");
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      periodontalExams: prontuario.periodontalExams.filter((e) => e.id !== args.examId),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const removePeriodontal = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      periodontalExams: prontuario.periodontalExams.filter((e) => {
+        if (e.id !== args.examId) return true;
+        if (user.role === "aluno") {
+          return !(e.createdBy === userId && e.status === "pending");
+        }
+        return false;
+      }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Índice de placa (O'Leary)
+// ────────────────────────────────────────────────────────────────────────────
+
+export const savePlaque = mutation({
+  args: {
+    patientId: v.id("patients"),
+    date: v.string(),
+    teeth: v.array(v.object({
+      tooth: v.number(),
+      mesial: v.boolean(),
+      distal: v.boolean(),
+      vestibular: v.boolean(),
+      lingual: v.boolean(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    const exam: PlaqueExam = {
+      id: newId(),
+      date: args.date || new Date().toISOString().slice(0, 10),
+      teeth: args.teeth.filter((t) =>
+        t.mesial || t.distal || t.vestibular || t.lingual,
+      ),
+      status: user.role === "professor" ? "approved" : "pending",
+      createdBy: userId,
+      createdByName: user.name ?? "Usuário",
+      updatedAt: Date.now(),
+    };
+    await ctx.db.patch(prontuario._id, {
+      plaqueExams: [...prontuario.plaqueExams, exam],
+      updatedAt: Date.now(),
+    });
+    return exam.id;
+  },
+});
+
+export const approvePlaque = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "professor");
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      plaqueExams: prontuario.plaqueExams.map((e) =>
+        e.id === args.examId ? { ...e, status: "approved" as const } : e,
+      ),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const rejectPlaque = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "professor");
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      plaqueExams: prontuario.plaqueExams.filter((e) => e.id !== args.examId),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const removePlaque = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      plaqueExams: prontuario.plaqueExams.filter((e) => {
+        if (e.id !== args.examId) return true;
+        if (user.role === "aluno") {
+          return !(e.createdBy === userId && e.status === "pending");
+        }
+        return false;
+      }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // Assinaturas — ordem: paciente → aluno → professor
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -463,6 +644,12 @@ export const sign = mutation({
       }));
       patch.procedures = prontuario.procedures.map((p) =>
         p.status === "pending" ? { ...p, status: "approved" as const } : p,
+      );
+      patch.periodontalExams = prontuario.periodontalExams.map((e) =>
+        e.status === "pending" ? { ...e, status: "approved" as const } : e,
+      );
+      patch.plaqueExams = prontuario.plaqueExams.map((e) =>
+        e.status === "pending" ? { ...e, status: "approved" as const } : e,
       );
       if (prontuario.anamneseDraft) {
         patch.anamnese = prontuario.anamneseDraft;

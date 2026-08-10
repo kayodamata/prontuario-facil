@@ -112,6 +112,8 @@ export const seed = mutation({
         anamneseStatus: "approved",
         teeth: [],
         procedures: [],
+        periodontalExams: [],
+        plaqueExams: [],
         signatures: [],
         status: "em_andamento",
         updatedAt: now,
@@ -182,6 +184,95 @@ export const seed = mutation({
             treatments: [
               mk(24, "restauracao", { material: "resina" as Material, classe: "IV" }),
             ],
+          },
+        ],
+        updatedAt: now,
+      });
+    }
+
+    // periograma e índice de placa de exemplo no paciente 2
+    const pront2 = await ctx.db
+      .query("prontuarios")
+      .withIndex("by_patient", (q) => q.eq("patientId", patientIds[1]))
+      .unique();
+    if (pront2) {
+      await ctx.db.patch(pront2._id, {
+        periodontalExams: [
+          {
+            id: "demo-perio-1",
+            date: today,
+            teeth: [
+              {
+                tooth: 16,
+                pockets: { mv: 3, v: 3, dv: 4, ml: 3, l: 2, dl: 3 },
+                recession: { mv: 1, v: 1, dv: 1, ml: 0, l: 0, dl: 0 },
+                mobility: 0,
+                furcation: 1,
+                bleeding: true,
+              },
+              {
+                tooth: 15,
+                pockets: { mv: 5, v: 4, dv: 5, ml: 4, l: 3, dl: 4 },
+                recession: { mv: 1, v: 2, dv: 1, ml: 1, l: 1, dl: 1 },
+                mobility: 1,
+                furcation: 0,
+                bleeding: true,
+              },
+              {
+                tooth: 14,
+                pockets: { mv: 6, v: 5, dv: 6, ml: 5, l: 4, dl: 5 },
+                recession: { mv: 2, v: 2, dv: 2, ml: 1, l: 1, dl: 1 },
+                mobility: 1,
+                furcation: 1,
+                bleeding: true,
+              },
+              {
+                tooth: 11,
+                pockets: { mv: 2, v: 2, dv: 2, ml: 2, l: 2, dl: 2 },
+                recession: { mv: 0, v: 0, dv: 0, ml: 0, l: 0, dl: 0 },
+                mobility: 0,
+                furcation: 0,
+                bleeding: false,
+              },
+              {
+                tooth: 46,
+                pockets: { mv: 4, v: 4, dv: 5, ml: 3, l: 3, dl: 4 },
+                recession: { mv: 1, v: 1, dv: 1, ml: 0, l: 0, dl: 0 },
+                mobility: 0,
+                furcation: 1,
+                bleeding: true,
+              },
+              {
+                tooth: 36,
+                pockets: { mv: 7, v: 6, dv: 7, ml: 6, l: 5, dl: 6 },
+                recession: { mv: 2, v: 3, dv: 2, ml: 2, l: 1, dl: 2 },
+                mobility: 2,
+                furcation: 2,
+                bleeding: true,
+              },
+            ],
+            status: "approved" as const,
+            createdBy: userId,
+            createdByName: "Dados de demonstração",
+            updatedAt: now,
+          },
+        ],
+        plaqueExams: [
+          {
+            id: "demo-placa-1",
+            date: today,
+            teeth: [
+              { tooth: 16, mesial: true, distal: true, vestibular: true, lingual: false },
+              { tooth: 15, mesial: true, distal: false, vestibular: true, lingual: true },
+              { tooth: 14, mesial: true, distal: true, vestibular: true, lingual: true },
+              { tooth: 11, mesial: false, distal: false, vestibular: false, lingual: false },
+              { tooth: 46, mesial: true, distal: true, vestibular: false, lingual: true },
+              { tooth: 36, mesial: true, distal: true, vestibular: true, lingual: true },
+            ],
+            status: "approved" as const,
+            createdBy: userId,
+            createdByName: "Dados de demonstração",
+            updatedAt: now,
           },
         ],
         updatedAt: now,
