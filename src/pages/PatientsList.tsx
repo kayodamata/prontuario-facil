@@ -34,7 +34,6 @@ import { FlaskConical, Loader2, Plus, Search, Users } from "lucide-react";
 export function PatientsList() {
   const { user } = useAuth();
   const patients = useQuery(api.patients.list);
-  const students = useQuery(api.users.listStudents);
   const create = useMutation(api.patients.create);
   const seed = useMutation(api.demo.seed);
 
@@ -212,8 +211,6 @@ export function PatientsList() {
           </table>
         </div>
       )}
-
-      {students === undefined && role === "professor" ? null : null}
 
       <NewPatientDialog
         open={open}

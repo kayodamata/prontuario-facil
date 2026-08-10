@@ -94,7 +94,9 @@ export const listStudents = query({
   args: {},
   handler: async (ctx) => {
     const { user } = await requireUser(ctx);
-    if (user.role === "aluno") throw new Error("Acesso restrito.");
+    // alunos(as) não precisam da lista — retorna vazio em vez de lançar erro,
+    // pois query com erro derruba a aplicação no cliente (convex/react)
+    if (user.role === "aluno") return [];
     const users = await ctx.db.query("users").collect();
     return users
       .filter((u) => u.role === "aluno")

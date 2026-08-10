@@ -349,7 +349,12 @@ function IdentificationTab({
   } | null;
   canAssign: boolean;
 }) {
-  const students = useQuery(api.users.listStudents);
+  // só o professor precisa da lista de alunos(as); alunos não devem chamar essa
+  // query (a query lançaria erro e derrubaria a aplicação)
+  const students = useQuery(
+    api.users.listStudents,
+    canAssign ? {} : "skip",
+  );
   const assign = useMutation(api.patients.assign);
   const unassign = useMutation(api.patients.unassign);
   const updateTriage = useMutation(api.patients.updateTriage);
