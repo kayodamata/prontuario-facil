@@ -31,7 +31,16 @@ async function getProntuario(ctx: Parameters<typeof requireUser>[0], patientId: 
     .withIndex("by_patient", (q) => q.eq("patientId", patientId))
     .unique();
   if (!prontuario) throw new Error("Prontuário não encontrado.");
-  return prontuario;
+  // Prontuários criados antes da adição de periograma/índice de placa podem
+  // não ter esses campos — normaliza para arrays vazios em todas as operações.
+  return {
+    ...prontuario,
+    teeth: prontuario.teeth ?? [],
+    procedures: prontuario.procedures ?? [],
+    periodontalExams: prontuario.periodontalExams ?? [],
+    plaqueExams: prontuario.plaqueExams ?? [],
+    signatures: prontuario.signatures ?? [],
+  } as Doc<"prontuarios">;
 }
 
 /** Verifica acesso clínico (aluno precisa estar designado). */
