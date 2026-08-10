@@ -45,6 +45,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import {
   ArrowLeft,
   Check,
+  Download,
   FileImage,
   FileText,
   Lock,
@@ -1205,9 +1206,12 @@ function AttachmentsTab({
   const remove = useMutation(api.attachments.remove);
 
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState<{ name: string; url: string } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<{
+    name: string;
+    url: string;
+    kind: string;
+    type: string;
+  } | null>(null);
   const inputRef = useState<HTMLInputElement | null>(null)[1];
 
   const kindOf = (name: string, type: string) => {
@@ -1222,6 +1226,28 @@ function AttachmentsTab({
     )
       return "documento";
     return "outro";
+  };
+
+  const isPdf = (name: string, type: string) =>
+    type === "application/pdf" || /\.pdf$/i.test(name);
+
+  const downloadFile = async (url: string, name: string) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Falha ao baixar o arquivo.");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      // fallback: se o fetch for bloqueado (CORS), tenta abrir direto
+      window.open(url, "_blank", "noopener");
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -1317,21 +1343,28 @@ function AttachmentsTab({
                 key={a._id}
                 className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-4 py-3"
               >
-                {a.kind === "imagem" && a.url ? (
+                {a.url ? (
                   <button
-                    onClick={() => setPreview({ name: a.name, url: a.url! })}
-                    className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted/70"
+                    onClick={() =>
+                      setPreview({
+                        name: a.name,
+                        url: a.url!,
+                        kind: a.kind,
+                        type: a.type,
+                      })
+                    }
+                    className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
                     title="Visualizar"
                   >
-                    <FileImage className="size-4" />
-                  </button>
-                ) : (
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    {a.kind === "dicom" ? (
-                      <FileText className="size-4" />
+                    {a.kind === "imagem" ? (
+                      <FileImage className="size-4" />
                     ) : (
                       <FileText className="size-4" />
                     )}
+                  </button>
+                ) : (
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <FileText className="size-4" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
@@ -1358,16 +1391,27 @@ function AttachmentsTab({
                   </Badge>
                 )}
                 {a.url && (
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 shrink-0 px-2 text-xs"
-                  >
-                    <a href={a.url} target="_blank" rel="noreferrer">
-                      Abrir
-                    </a>
-                  </Button>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      title="Baixar"
+                      onClick={() => downloadFile(a.url!, a.name)}
+                    >
+                      <Download className="size-3.5" />
+                    </Button>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                    >
+                      <a href={a.url} target="_blank" rel="noreferrer">
+                        Abrir
+                      </a>
+                    </Button>
+                  </div>
                 )}
                 <div className="flex shrink-0 flex-col gap-1">
                   {pending && canApprove && (
@@ -1411,19 +1455,53 @@ function AttachmentsTab({
       )}
 
       <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="max-h-[92vh] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle className="text-sm font-medium">
               {preview?.name}
             </DialogTitle>
           </DialogHeader>
-          {preview && (
+          {preview && preview.kind === "imagem" && (
             <img
               src={preview.url}
               alt={preview.name}
               className="max-h-[70vh] w-full rounded-md object-contain"
             />
           )}
+          {preview &&
+            preview.kind !== "imagem" &&
+            isPdf(preview.name, preview.type) && (
+              <iframe
+                src={preview.url}
+                title={preview.name}
+                className="h-[72vh] w-full rounded-md border border-border/70"
+              />
+            )}
+          {preview &&
+            preview.kind !== "imagem" &&
+            !isPdf(preview.name, preview.type) && (
+              <div className="flex flex-col items-center gap-3 rounded-md border border-border/60 bg-muted/40 px-6 py-10 text-center">
+                <FileText className="size-6 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Este formato não pode ser visualizado no navegador.
+                  Baixe o arquivo para abrir.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => downloadFile(preview.url, preview.name)}
+                  >
+                    <Download className="mr-1.5 size-3.5" />
+                    Baixar arquivo
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <a href={preview.url} target="_blank" rel="noreferrer">
+                      Abrir em nova aba
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            )}
         </DialogContent>
       </Dialog>
     </div>
