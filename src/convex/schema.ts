@@ -18,6 +18,7 @@ export const ROLES = {
   RECEPCAO: "recepcao",
   PROFESSOR: "professor",
   ALUNO: "aluno",
+  ADMIN: "admin",
 } as const;
 
 export type Role = Infer<typeof roleValidator>;

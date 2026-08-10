@@ -204,8 +204,8 @@ export default function Landing() {
             <ToothMark className="mx-auto size-8 text-muted-foreground" />
             <h3 className="mt-5 text-xl font-light">Pronto para testar?</h3>
             <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
-              Crie contas de recepção, professor e aluno com o mesmo e-mail e
-              explore o fluxo completo.
+              Crie contas com e-mail e senha para recepção, professor, aluno e
+              administração — e explore o fluxo completo.
             </p>
             <Button asChild size="lg" className="mt-8 w-full max-w-60">
               <Link to="/auth">

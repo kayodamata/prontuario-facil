@@ -9,11 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 import { useAuth } from "@/hooks/use-auth";
 import {
   ArrowLeft,
@@ -22,14 +17,16 @@ import {
   ClipboardList,
   GraduationCap,
   Loader2,
+  Lock,
   Mail,
   ShieldCheck,
   Stethoscope,
   UserRound,
+  UserCog,
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/convex/shared";
@@ -74,14 +71,30 @@ const ROLE_OPTIONS: {
   },
 ];
 
+const ADMIN_OPTION: {
+  role: Role;
+  title: string;
+  description: string;
+  icon: typeof UserRound;
+} = {
+  role: "admin",
+  title: "Administração",
+  description: "Gerencia usuários e níveis de acesso",
+  icon: UserCog,
+};
+
 function ProfileSetup({ onDone }: { onDone: () => void }) {
   const completeProfile = useMutation(api.users.completeProfile);
+  const hasAdmin = useQuery(api.users.hasAdmin);
   const [role, setRole] = useState<Role | null>(null);
   const [name, setName] = useState("");
   const [cro, setCro] = useState("");
   const [registration, setRegistration] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // a opção de administrador só aparece para a primeira conta (se não há admin)
+  const options = hasAdmin ? ROLE_OPTIONS : [...ROLE_OPTIONS, ADMIN_OPTION];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +129,7 @@ function ProfileSetup({ onDone }: { onDone: () => void }) {
       <form onSubmit={handleSubmit}>
         <CardContent className="flex flex-col gap-5">
           <div className="grid gap-2">
-            {ROLE_OPTIONS.map((opt) => {
+            {options.map((opt) => {
               const Icon = opt.icon;
               const active = role === opt.role;
               return (
@@ -221,8 +234,11 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     searchParams.get("returnTo"),
     redirectAfterAuth,
   );
-  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
-  const [otp, setOtp] = useState("");
+  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -242,37 +258,37 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     );
   }
 
-  const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (mode === "signUp" && password !== confirm) {
+      setError("As senhas não coincidem.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      setStep({ email: formData.get("email") as string });
+      if (mode === "signIn") {
+        await signIn("password", { flow: "signIn", email, password });
+      } else {
+        await signIn("password", {
+          flow: "signUp",
+          name,
+          email,
+          password,
+        });
+      }
+      // se o usuário já tem perfil, o efeito acima redireciona;
+      // se não tem, o cadastro de perfil (ProfileSetup) é exibido
       setIsLoading(false);
-    } catch (error) {
+    } catch (err) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "Falha ao enviar o código. Tente novamente.",
+        err instanceof Error
+          ? err.message
+          : mode === "signIn"
+            ? "E-mail ou senha incorretos."
+            : "Não foi possível criar a conta.",
       );
       setIsLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      navigate(redirect, { replace: true });
-    } catch (error) {
-      setError("O código informado está incorreto.");
-      setIsLoading(false);
-      setOtp("");
     }
   };
 
@@ -280,119 +296,152 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     <div className="flex min-h-screen flex-col bg-background">
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-[400px] max-w-full border shadow-sm">
-          {step === "signIn" ? (
-            <>
-              <CardHeader className="text-center">
-                <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full border border-border">
-                  <Stethoscope className="size-5" />
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full border border-border">
+              <Stethoscope className="size-5" />
+            </div>
+            <CardTitle className="text-xl">
+              {mode === "signIn" ? "Acessar sistema" : "Criar conta"}
+            </CardTitle>
+            <CardDescription>
+              {mode === "signIn"
+                ? "Entre com seu e-mail e senha para acessar os prontuários"
+                : "Crie sua conta com e-mail e senha"}
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="flex flex-col gap-4">
+              {mode === "signUp" && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="name" className="text-xs">
+                    Nome completo
+                  </Label>
+                  <div className="relative">
+                    <UserRound className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                      id="name"
+                      className="h-9 pl-9"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Seu nome"
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
                 </div>
-                <CardTitle className="text-xl">Acessar sistema</CardTitle>
-                <CardDescription>
-                  Entre com seu e-mail institucional para acessar os prontuários
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleEmailSubmit}>
-                <CardContent>
-                  <div className="relative flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Mail className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                      <Input
-                        name="email"
-                        placeholder="nome@instituicao.edu.br"
-                        type="email"
-                        className="h-9 pl-9"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="icon"
-                      className="size-9"
+              )}
+              <div className="grid gap-1.5">
+                <Label htmlFor="email" className="text-xs">
+                  E-mail
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    className="h-9 pl-9"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nome@instituicao.edu.br"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="password" className="text-xs">
+                  Senha
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    className="h-9 pl-9"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                    disabled={isLoading}
+                    required
+                    minLength={8}
+                  />
+                </div>
+              </div>
+              {mode === "signUp" && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="confirm" className="text-xs">
+                    Confirmar senha
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                      id="confirm"
+                      className="h-9 pl-9"
+                      type="password"
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      placeholder="Repita a senha"
                       disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="size-4" />
-                      )}
-                    </Button>
+                      required
+                      minLength={8}
+                    />
                   </div>
-                  {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-                  <p className="mt-4 text-center text-xs text-muted-foreground">
-                    Receberá um código de verificação por e-mail. Se ainda não tem
-                    conta, ela será criada no primeiro acesso.
-                  </p>
-                </CardContent>
-              </form>
-            </>
-          ) : (
-            <>
-              <CardHeader className="text-center mt-2">
-                <CardTitle className="text-xl">Verifique seu e-mail</CardTitle>
-                <CardDescription>
-                  Enviamos um código para{" "}
-                  <span className="font-medium text-foreground">{step.email}</span>
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleOtpSubmit}>
-                <CardContent className="flex flex-col gap-4">
-                  <input type="hidden" name="email" value={step.email} />
-                  <input type="hidden" name="code" value={otp} />
-                  <div className="flex justify-center">
-                    <InputOTP
-                      value={otp}
-                      onChange={setOtp}
-                      maxLength={6}
-                      disabled={isLoading}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && otp.length === 6 && !isLoading) {
-                          (e.target as HTMLElement).closest("form")?.requestSubmit();
-                        }
-                      }}
-                    >
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }).map((_, index) => (
-                          <InputOTPSlot key={index} index={index} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  {error && (
-                    <p className="text-center text-xs text-destructive">{error}</p>
-                  )}
-                  <p className="text-center text-xs text-muted-foreground">
-                    Não recebeu o código?{" "}
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 text-xs"
-                      onClick={() => setStep("signIn")}
-                    >
-                      Tentar novamente
-                    </Button>
-                  </p>
+                </div>
+              )}
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {mode === "signIn" ? "Entrando…" : "Criando conta…"}
+                  </>
+                ) : mode === "signIn" ? (
+                  <>
+                    Entrar
+                    <ArrowRight className="ml-2 size-4" />
+                  </>
+                ) : (
+                  <>
+                    Criar conta
+                    <BadgeCheck className="ml-2 size-4" />
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </form>
+          <CardFooter className="justify-center border-t border-border/60 pt-4">
+            <p className="text-center text-xs text-muted-foreground">
+              {mode === "signIn" ? (
+                <>
+                  Ainda não tem conta?{" "}
                   <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isLoading || otp.length !== 6}
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => {
+                      setMode("signUp");
+                      setError(null);
+                    }}
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Verificando…
-                      </>
-                    ) : (
-                      <>
-                        Entrar
-                        <ArrowRight className="ml-2 size-4" />
-                      </>
-                    )}
+                    Criar conta
                   </Button>
-                </CardContent>
-              </form>
-            </>
-          )}
+                </>
+              ) : (
+                <>
+                  Já tem conta?{" "}
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => {
+                      setMode("signIn");
+                      setError(null);
+                    }}
+                  >
+                    Entrar
+                  </Button>
+                </>
+              )}
+            </p>
+          </CardFooter>
         </Card>
       </div>
       <footer className="flex items-center justify-center gap-4 border-t border-border/60 py-4 text-xs text-muted-foreground">

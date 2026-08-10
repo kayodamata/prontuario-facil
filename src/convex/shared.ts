@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
 // ────────────────────────────────────────────────────────────────────────────
 // Roles
 // ────────────────────────────────────────────────────────────────────────────
-export const ROLES = ["recepcao", "professor", "aluno"] as const;
+export const ROLES = ["recepcao", "professor", "aluno", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 export const roleValidator = v.union(...ROLES.map((r) => v.literal(r)));
 
@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   recepcao: "Recepção",
   professor: "Professor(a)",
   aluno: "Aluno(a)",
+  admin: "Administração",
 };
 
 // ────────────────────────────────────────────────────────────────────────────

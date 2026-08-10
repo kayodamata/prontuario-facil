@@ -13,6 +13,7 @@ import {
   LogOut,
   PenLine,
   Stethoscope,
+  UserCog,
   Users,
 } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -20,6 +21,7 @@ import { Agenda } from "./Agenda";
 import { PatientsList } from "./PatientsList";
 import { PlansView } from "./PlansView";
 import { PlanMineView } from "./PlanMineView";
+import { UsersAdmin } from "./UsersAdmin";
 import type { Role } from "@/convex/shared";
 
 const NAV: Record<Role, { id: string; label: string; icon: typeof Users }[]> = {
@@ -34,6 +36,10 @@ const NAV: Record<Role, { id: string; label: string; icon: typeof Users }[]> = {
   aluno: [
     { id: "pacientes", label: "Meus pacientes", icon: Users },
     { id: "planejamento", label: "Planejamento diário", icon: PenLine },
+  ],
+  admin: [
+    { id: "usuarios", label: "Administração", icon: UserCog },
+    { id: "pacientes", label: "Pacientes", icon: Users },
   ],
 };
 
@@ -132,6 +138,7 @@ export default function Dashboard() {
           {active === "pacientes" && <PatientsList />}
           {active === "planejamentos" && <PlansView />}
           {active === "planejamento" && <PlanMineView />}
+          {active === "usuarios" && <UsersAdmin />}
         </div>
       </main>
     </div>
