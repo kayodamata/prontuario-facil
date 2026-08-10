@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -23,6 +23,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         replace
       />
     );
+  }
+
+  // conta criada mas sem nível de acesso definido — volta para o cadastro
+  if (user && !user.role) {
+    return <Navigate to="/auth" replace />;
   }
 
   return children;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/hooks/use-auth";
 import { useParams, useNavigate, Link } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -1178,7 +1179,7 @@ function AttachmentsTab({
 }: {
   patientId: never;
   attachments: {
-    _id: string;
+    _id: Id<"attachments">;
     name: string;
     type: string;
     kind: string;
@@ -1186,8 +1187,8 @@ function AttachmentsTab({
     status: string;
     uploadedByName: string;
     createdAt: number;
-    storageId?: string;
-    url?: string;
+    storageId?: Id<"_storage">;
+    url?: string | null;
   }[];
   canEdit: boolean;
   canApprove: boolean;
