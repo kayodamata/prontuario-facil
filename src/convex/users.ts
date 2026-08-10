@@ -81,6 +81,15 @@ export async function requireClinical(ctx: AuthCtx) {
   return { userId, user };
 }
 
+/** Require perfil com poder de autorização (professor ou administração). */
+export async function requireTeacher(ctx: AuthCtx) {
+  const { userId, user } = await requireUser(ctx);
+  if (user.role !== "professor" && user.role !== "admin") {
+    throw new Error("Acesso restrito: necessário perfil de professor(a).");
+  }
+  return { userId, user };
+}
+
 /** Require admin dentro de uma action (via ctx.runQuery, pois action não tem db). */
 export async function requireAdminAction(ctx: ActionCtx) {
   const me = (await ctx.runQuery(api.users.currentUser)) as Doc<"users"> | null;

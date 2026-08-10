@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { planStatusValidator } from "./shared";
 import { hasStudentAccess } from "./patients";
-import { requireRole, requireUser } from "./users";
+import { requireTeacher, requireUser } from "./users";
 
 export const submit = mutation({
   args: {
@@ -53,11 +53,11 @@ export const listMine = query({
   },
 });
 
-/** Professor: fila de planejamentos (pendentes primeiro) e histórico. */
+/** Professor/administração: fila de planejamentos (pendentes primeiro) e histórico. */
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const plans = await ctx.db.query("dailyPlans").collect();
     return plans.sort((a, b) => {
       if (a.status === "pending" && b.status !== "pending") return -1;
@@ -67,12 +67,12 @@ export const listAll = query({
   },
 });
 
-/** Quantidade de planejamentos pendentes (badge do professor). */
+/** Quantidade de planejamentos pendentes (badge do professor/administração). */
 export const countPending = query({
   args: {},
   handler: async (ctx) => {
     const { user } = await requireUser(ctx);
-    if (user.role !== "professor") return 0;
+    if (user.role !== "professor" && user.role !== "admin") return 0;
     const plans = await ctx.db.query("dailyPlans").collect();
     return plans.filter((p) => p.status === "pending").length;
   },
@@ -87,7 +87,7 @@ export const review = mutation({
     feedback: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "professor");
+    const { userId } = await requireTeacher(ctx);
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new Error("Planejamento não encontrado.");
     await ctx.db.patch(args.planId, {
@@ -96,6 +96,46 @@ export const review = mutation({
       status: args.status,
       feedback: args.feedback?.trim() || undefined,
       professorId: userId,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Aluno reenvia um planejamento devolvido para revisão (status "returned").
+ * O parecer e as correções anteriores do professor são preservados.
+ */
+export const update = mutation({
+  args: {
+    planId: v.id("dailyPlans"),
+    date: v.string(),
+    tooth: v.optional(v.string()),
+    procedure: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireUser(ctx);
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new Error("Planejamento não encontrado.");
+    if (user.role === "aluno") {
+      if (plan.studentId !== userId) {
+        throw new Error("Este planejamento não é seu.");
+      }
+      if (plan.status !== "returned") {
+        throw new Error(
+          "Só é possível editar planejamentos devolvidos para revisão.",
+        );
+      }
+    }
+    if (!args.procedure.trim()) {
+      throw new Error("Descreva o procedimento planejado.");
+    }
+    await ctx.db.patch(args.planId, {
+      date: args.date,
+      tooth: args.tooth?.trim() || undefined,
+      procedure: args.procedure.trim(),
+      notes: args.notes?.trim() || undefined,
+      status: "pending",
       updatedAt: Date.now(),
     });
   },

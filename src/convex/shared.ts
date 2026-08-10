@@ -15,6 +15,11 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administração",
 };
 
+/** Perfis com poder de autorização clínica (professor ou administração). */
+export function isTeacher(user: { role?: string }): boolean {
+  return user.role === "professor" || user.role === "admin";
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Clinicas / triagem — "veio à instituição para qual finalidade?"
 // ────────────────────────────────────────────────────────────────────────────

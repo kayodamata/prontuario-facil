@@ -17,6 +17,9 @@ import { toast } from "sonner";
 import { PLAN_STATUS_LABELS, PENDING_COLOR } from "@/convex/shared";
 import { Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Doc } from "@/convex/_generated/dataModel";
+
+type Plan = Doc<"dailyPlans">;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -25,6 +28,7 @@ export function PlanMineView() {
   const patients = useQuery(api.patients.list);
 
   const submit = useMutation(api.plans.submit);
+  const update = useMutation(api.plans.update);
   const remove = useMutation(api.plans.remove);
 
   const [date, setDate] = useState(todayStr());
@@ -34,11 +38,34 @@ export function PlanMineView() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const myPatients = (patients ?? []).filter(
     (p) => p.fullName !== undefined,
   );
   const selectedPatient = myPatients.find((p) => p._id === patientId);
+
+  // carrega um planejamento devolvido para revisão no formulário
+  const startEdit = (p: Plan) => {
+    setEditingId(p._id);
+    setDate(p.date);
+    setPatientId(p.patientId ?? "");
+    setTooth(p.tooth ?? "");
+    // parte das correções do professor (se houverem)
+    setProcedure(p.procedureApproved ?? p.procedure);
+    setNotes(p.notesApproved ?? p.notes ?? "");
+    setError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDate(todayStr());
+    setPatientId("");
+    setTooth("");
+    setProcedure("");
+    setNotes("");
+    setError(null);
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -46,18 +73,29 @@ export function PlanMineView() {
     if (!procedure.trim()) return setError("Descreva o procedimento planejado.");
     setSaving(true);
     try {
-      await submit({
-        date,
-        patientId: patientId as never,
-        patientName: selectedPatient?.fullName ?? "Paciente",
-        tooth: tooth || undefined,
-        procedure,
-        notes: notes || undefined,
-      });
-      setTooth("");
-      setProcedure("");
-      setNotes("");
-      toast.success("Planejamento enviado para avaliação do professor.");
+      if (editingId) {
+        await update({
+          planId: editingId as never,
+          date,
+          tooth: tooth || undefined,
+          procedure,
+          notes: notes || undefined,
+        });
+        toast.success(
+          "Planejamento revisado e reenviado para avaliação do professor.",
+        );
+      } else {
+        await submit({
+          date,
+          patientId: patientId as never,
+          patientName: selectedPatient?.fullName ?? "Paciente",
+          tooth: tooth || undefined,
+          procedure,
+          notes: notes || undefined,
+        });
+        toast.success("Planejamento enviado para avaliação do professor.");
+      }
+      cancelEdit();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao enviar.");
     } finally {
@@ -82,7 +120,34 @@ export function PlanMineView() {
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Formulário */}
         <section className="flex flex-col gap-4 rounded-lg border border-border/70 bg-card p-5">
-          <h2 className="text-sm font-medium">Novo planejamento</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">
+              {editingId ? "Revisar planejamento devolvido" : "Novo planejamento"}
+            </h2>
+            {editingId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground"
+                onClick={cancelEdit}
+              >
+                Cancelar edição
+              </Button>
+            )}
+          </div>
+          {editingId && (
+            <p
+              className="rounded-md border px-3 py-2 text-xs"
+              style={{
+                borderColor: PENDING_COLOR,
+                color: PENDING_COLOR,
+                background: `${PENDING_COLOR}0d`,
+              }}
+            >
+              Incorpore as correções do professor e reenvie. O planejamento
+              voltará para a fila de avaliação.
+            </p>
+          )}
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -148,7 +213,7 @@ export function PlanMineView() {
               ) : (
                 <Send className="mr-1.5 size-4" />
               )}
-              Enviar para o professor
+              {editingId ? "Reenviar para o professor" : "Enviar para o professor"}
             </Button>
           </div>
         </section>
@@ -241,16 +306,28 @@ export function PlanMineView() {
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(p.date + "T12:00:00").toLocaleDateString("pt-BR")}
                     </span>
-                    {p.status === "pending" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[11px] text-muted-foreground"
-                        onClick={() => remove({ planId: p._id })}
-                      >
-                        Excluir
-                      </Button>
-                    )}
+                    <div className="flex gap-1">
+                      {p.status === "returned" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[11px]"
+                          onClick={() => startEdit(p)}
+                        >
+                          Editar e reenviar
+                        </Button>
+                      )}
+                      {p.status === "pending" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] text-muted-foreground"
+                          onClick={() => remove({ planId: p._id })}
+                        >
+                          Excluir
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}

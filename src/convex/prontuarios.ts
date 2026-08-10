@@ -4,6 +4,7 @@ import {
   anamneseValidator,
   classeValidator,
   emptyAnamnese,
+  isTeacher,
   materialValidator,
   periodontalExamValidator,
   plaqueExamValidator,
@@ -16,7 +17,7 @@ import {
   type ToothRecord,
 } from "./shared";
 import { hasStudentAccess } from "./patients";
-import { requireRole, requireUser } from "./users";
+import { requireTeacher, requireUser } from "./users";
 import { Doc, Id } from "./_generated/dataModel";
 
 const newId = () =>
@@ -71,10 +72,10 @@ export const get = query({
       .withIndex("by_patient", (q) => q.eq("patientId", patientId))
       .collect();
 
-    // permissões
-    const canApprove = user.role === "professor";
-    const canEdit = user.role === "professor" || user.role === "aluno";
-    const canViewSensitive = user.role === "professor" || user.role === "aluno";
+    // permissões — professor e administração têm acesso clínico total
+    const canApprove = isTeacher(user);
+    const canEdit = isTeacher(user) || user.role === "aluno";
+    const canViewSensitive = isTeacher(user) || user.role === "aluno";
     const isReception = user.role === "recepcao";
 
     // dados sensíveis: recepção NÃO recebe conteúdo nem storageId dos anexos
@@ -184,7 +185,7 @@ export const saveTooth = mutation({
       componentProtesico: args.treatment.componentProtesico?.trim() || undefined,
       condutos: args.treatment.condutos,
       note: args.treatment.note?.trim() || undefined,
-      status: user.role === "professor" ? "approved" : "pending",
+      status: isTeacher(user) ? "approved" : "pending",
       createdBy: userId,
       createdByName: user.name ?? "Usuário",
       updatedAt: now,
@@ -222,7 +223,7 @@ export const approveTreatment = mutation({
     treatmentId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     const teeth = prontuario.teeth.map((t) => {
       if (t.tooth !== args.tooth) return t;
@@ -247,7 +248,7 @@ export const rejectTreatment = mutation({
     treatmentId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     const teeth = prontuario.teeth.map((t) => {
       if (t.tooth !== args.tooth) return t;
@@ -297,7 +298,7 @@ export const saveAnamnese = mutation({
     const { user } = await requireClinicalAccess(ctx, args.patientId);
     const prontuario = await getProntuario(ctx, args.patientId);
     const now = Date.now();
-    if (user.role === "professor") {
+    if (isTeacher(user)) {
       await ctx.db.patch(prontuario._id, {
         anamnese: args.anamnese as Anamnese,
         anamneseDraft: undefined,
@@ -317,7 +318,7 @@ export const saveAnamnese = mutation({
 export const approveAnamnese = mutation({
   args: { patientId: v.id("patients") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     if (!prontuario.anamneseDraft) throw new Error("Nada pendente para aprovar.");
     await ctx.db.patch(prontuario._id, {
@@ -332,7 +333,7 @@ export const approveAnamnese = mutation({
 export const rejectAnamnese = mutation({
   args: { patientId: v.id("patients") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       anamneseDraft: undefined,
@@ -365,7 +366,7 @@ export const saveProcedure = mutation({
       description: args.description.trim(),
       tooth: args.tooth?.trim() || undefined,
       date: args.date || new Date().toISOString().slice(0, 10),
-      status: user.role === "professor" ? "approved" as const : "pending" as const,
+      status: isTeacher(user) ? "approved" as const : "pending" as const,
       createdBy: userId,
       createdByName: user.name ?? "Usuário",
       updatedAt: Date.now(),
@@ -380,7 +381,7 @@ export const saveProcedure = mutation({
 export const approveProcedure = mutation({
   args: { patientId: v.id("patients"), procedureId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       procedures: prontuario.procedures.map((p) =>
@@ -394,7 +395,7 @@ export const approveProcedure = mutation({
 export const rejectProcedure = mutation({
   args: { patientId: v.id("patients"), procedureId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       procedures: prontuario.procedures.filter((p) => p.id !== args.procedureId),
@@ -457,7 +458,7 @@ export const savePeriodontal = mutation({
         t.mobility > 0 ||
         t.furcation > 0,
       ),
-      status: user.role === "professor" ? "approved" : "pending",
+      status: isTeacher(user) ? "approved" : "pending",
       createdBy: userId,
       createdByName: user.name ?? "Usuário",
       updatedAt: Date.now(),
@@ -473,7 +474,7 @@ export const savePeriodontal = mutation({
 export const approvePeriodontal = mutation({
   args: { patientId: v.id("patients"), examId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       periodontalExams: prontuario.periodontalExams.map((e) =>
@@ -487,7 +488,7 @@ export const approvePeriodontal = mutation({
 export const rejectPeriodontal = mutation({
   args: { patientId: v.id("patients"), examId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       periodontalExams: prontuario.periodontalExams.filter((e) => e.id !== args.examId),
@@ -539,7 +540,7 @@ export const savePlaque = mutation({
       teeth: args.teeth.filter((t) =>
         t.mesial || t.distal || t.vestibular || t.lingual,
       ),
-      status: user.role === "professor" ? "approved" : "pending",
+      status: isTeacher(user) ? "approved" : "pending",
       createdBy: userId,
       createdByName: user.name ?? "Usuário",
       updatedAt: Date.now(),
@@ -555,7 +556,7 @@ export const savePlaque = mutation({
 export const approvePlaque = mutation({
   args: { patientId: v.id("patients"), examId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       plaqueExams: prontuario.plaqueExams.map((e) =>
@@ -569,7 +570,7 @@ export const approvePlaque = mutation({
 export const rejectPlaque = mutation({
   args: { patientId: v.id("patients"), examId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const prontuario = await getProntuario(ctx, args.patientId);
     await ctx.db.patch(prontuario._id, {
       plaqueExams: prontuario.plaqueExams.filter((e) => e.id !== args.examId),
@@ -620,7 +621,7 @@ export const sign = mutation({
         `Assinatura fora de ordem: aguardando assinatura do(a) ${expected}.`,
       );
     }
-    if (args.role === "professor" && user.role !== "professor") {
+    if (args.role === "professor" && !isTeacher(user)) {
       throw new Error("Apenas o(a) professor(a) pode assinar como professor(a).");
     }
     if (args.role === "aluno" && user.role === "recepcao") {

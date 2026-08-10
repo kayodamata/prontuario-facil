@@ -1,7 +1,7 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { emptyAnamnese, type Clinica, type Material, type ToothTreatment, type TreatmentType } from "./shared";
-import { requireRole } from "./users";
+import { requireTeacher } from "./users";
 import { Doc, Id } from "./_generated/dataModel";
 
 interface SamplePatient {
@@ -16,11 +16,11 @@ interface SamplePatient {
   triageDetail: string;
 }
 
-/** Gera pacientes de demonstração (apenas professor) para testar o fluxo. */
+/** Gera pacientes de demonstração (professor ou administração) para testar o fluxo. */
 export const seed = mutation({
   args: {},
   handler: async (ctx) => {
-    const { userId } = await requireRole(ctx, "professor");
+    const { userId } = await requireTeacher(ctx);
     const now = Date.now();
     const today = new Date().toISOString().slice(0, 10);
 

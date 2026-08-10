@@ -86,14 +86,14 @@ export function PatientsList() {
           <p className="mt-1 text-sm text-muted-foreground">
             {role === "recepcao" &&
               "Banco completo de pacientes. Dados clínicos sensíveis ficam no prontuário."}
-            {role === "professor" &&
+            {(role === "professor" || role === "admin") &&
               "Banco completo de pacientes e prontuários."}
             {role === "aluno" &&
               "Somente os pacientes designados a você pelo professor."}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {role === "professor" && (
+          {(role === "professor" || role === "admin") && (
             <Button variant="outline" onClick={handleSeed} disabled={seeding}>
               {seeding ? (
                 <Loader2 className="mr-1.5 size-4 animate-spin" />

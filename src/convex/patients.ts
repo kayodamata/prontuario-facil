@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { clinicValidator, emptyAnamnese, patientStatusValidator } from "./shared";
-import { requireRole, requireUser } from "./users";
+import { clinicValidator, emptyAnamnese, isTeacher, patientStatusValidator } from "./shared";
+import { requireTeacher, requireUser } from "./users";
 import { Id } from "./_generated/dataModel";
 
 export const create = mutation({
@@ -126,8 +126,8 @@ export const updateTriage = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireUser(ctx);
-    if (user.role !== "recepcao" && user.role !== "professor") {
-      throw new Error("Apenas recepção ou professor podem triar pacientes.");
+    if (user.role !== "recepcao" && !isTeacher(user)) {
+      throw new Error("Apenas recepção, professor ou administração podem triar pacientes.");
     }
     await ctx.db.patch(args.patientId, {
       triage: args.triage,
@@ -145,7 +145,7 @@ export const updateStatus = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireUser(ctx);
-    if (user.role !== "recepcao" && user.role !== "professor") {
+    if (user.role !== "recepcao" && !isTeacher(user)) {
       throw new Error("Acesso restrito.");
     }
     await ctx.db.patch(args.patientId, {
@@ -163,7 +163,7 @@ export const assign = mutation({
     accessEnd: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "professor");
+    const { userId } = await requireTeacher(ctx);
     const student = await ctx.db.get(args.studentId);
     if (!student || student.role !== "aluno") {
       throw new Error("Selecione um(a) aluno(a) válido(a).");
@@ -189,7 +189,7 @@ export const assign = mutation({
 export const unassign = mutation({
   args: { patientId: v.id("patients"), studentId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const existing = await ctx.db
       .query("patientAccess")
       .withIndex("by_patient", (q) => q.eq("patientId", args.patientId))

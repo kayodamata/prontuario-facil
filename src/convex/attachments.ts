@@ -1,7 +1,8 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { isTeacher } from "./shared";
 import { hasStudentAccess } from "./patients";
-import { requireRole, requireUser } from "./users";
+import { requireTeacher, requireUser } from "./users";
 
 /** URL para upload direto ao armazenamento do Convex. */
 export const generateUploadUrl = mutation({
@@ -42,9 +43,9 @@ export const register = mutation({
       storageId: args.storageId,
       uploadedBy: userId,
       uploadedByName: user.name ?? "Usuário",
-      // aluno envia → aguarda autorização do professor; professor anexa direto
-      status: user.role === "professor" ? "approved" : "pending",
-      approvedBy: user.role === "professor" ? userId : undefined,
+      // aluno envia → aguarda autorização; professor/admin anexam direto
+      status: isTeacher(user) ? "approved" : "pending",
+      approvedBy: isTeacher(user) ? userId : undefined,
       createdAt: Date.now(),
     });
   },
@@ -53,7 +54,7 @@ export const register = mutation({
 export const approve = mutation({
   args: { attachmentId: v.id("attachments") },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "professor");
+    const { userId } = await requireTeacher(ctx);
     const a = await ctx.db.get(args.attachmentId);
     if (!a) throw new Error("Anexo não encontrado.");
     await ctx.db.patch(args.attachmentId, {
@@ -66,7 +67,7 @@ export const approve = mutation({
 export const reject = mutation({
   args: { attachmentId: v.id("attachments") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, "professor");
+    await requireTeacher(ctx);
     const a = await ctx.db.get(args.attachmentId);
     if (!a) throw new Error("Anexo não encontrado.");
     await ctx.storage.delete(a.storageId);

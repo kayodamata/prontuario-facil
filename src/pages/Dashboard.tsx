@@ -39,6 +39,7 @@ const NAV: Record<Role, { id: string; label: string; icon: typeof Users }[]> = {
   ],
   admin: [
     { id: "usuarios", label: "Administração", icon: UserCog },
+    { id: "planejamentos", label: "Planejamentos", icon: ClipboardCheck },
     { id: "pacientes", label: "Pacientes", icon: Users },
   ],
 };
