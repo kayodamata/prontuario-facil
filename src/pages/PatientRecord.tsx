@@ -159,6 +159,22 @@ export default function PatientRecord() {
           <TabsList className="h-9 justify-start overflow-x-auto">
             <TabsTrigger value="identificacao">Identificação</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
+            <TabsTrigger value="periograma">
+              Periograma
+              {pendingPerio > 0 && (
+                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
+                  ·{pendingPerio}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="placa">
+              Índice de placa
+              {pendingPlaque > 0 && (
+                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
+                  ·{pendingPlaque}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="odontograma">
               Odontograma
               {pendingTeeth > 0 && (
@@ -175,22 +191,6 @@ export default function PatientRecord() {
               {pendingProcedures.length > 0 && (
                 <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
                   ·{pendingProcedures.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="periograma">
-              Periograma
-              {pendingPerio > 0 && (
-                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
-                  ·{pendingPerio}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="placa">
-              Índice de placa
-              {pendingPlaque > 0 && (
-                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
-                  ·{pendingPlaque}
                 </span>
               )}
             </TabsTrigger>
@@ -226,24 +226,6 @@ export default function PatientRecord() {
               canApprove={permissions.canApprove}
             />
           </TabsContent>
-          <TabsContent value="odontograma" className="mt-4">
-            <OdontogramTab
-              patientId={patient._id as never}
-              teeth={prontuario.teeth}
-              canEdit={permissions.canEdit}
-              canApprove={permissions.canApprove}
-              currentUserId={user?._id}
-            />
-          </TabsContent>
-          <TabsContent value="procedimentos" className="mt-4">
-            <ProceduresTab
-              patientId={patient._id as never}
-              procedures={prontuario.procedures}
-              canEdit={permissions.canEdit}
-              canApprove={permissions.canApprove}
-              currentUserId={user?._id}
-            />
-          </TabsContent>
           <TabsContent value="periograma" className="mt-4">
             <PeriogramaTab
               patientId={patient._id as never}
@@ -257,6 +239,24 @@ export default function PatientRecord() {
             <PlaqueTab
               patientId={patient._id as never}
               exams={prontuario.plaqueExams ?? []}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+              currentUserId={user?._id}
+            />
+          </TabsContent>
+          <TabsContent value="odontograma" className="mt-4">
+            <OdontogramTab
+              patientId={patient._id as never}
+              teeth={prontuario.teeth}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+              currentUserId={user?._id}
+            />
+          </TabsContent>
+          <TabsContent value="procedimentos" className="mt-4">
+            <ProceduresTab
+              patientId={patient._id as never}
+              procedures={prontuario.procedures}
               canEdit={permissions.canEdit}
               canApprove={permissions.canApprove}
               currentUserId={user?._id}
