@@ -186,7 +186,63 @@ export const ANMNESE_HABITOS_OPTIONS = [
 ] as const;
 
 // ────────────────────────────────────────────────────────────────────────────
-// Procedimentos / anotações
+// Assinaturas — ordem: paciente → aluno → professor
+// ────────────────────────────────────────────────────────────────────────────
+export const SIGNATURE_ROLES = ["paciente", "aluno", "professor"] as const;
+export type SignatureRole = (typeof SIGNATURE_ROLES)[number];
+export const signatureRoleValidator = v.union(
+  ...SIGNATURE_ROLES.map((r) => v.literal(r)),
+);
+
+export interface Signature {
+  role: SignatureRole;
+  name: string;
+  dataUrl: string;
+  signedAt: number;
+}
+
+export const signatureValidator = v.object({
+  role: signatureRoleValidator,
+  name: v.string(),
+  dataUrl: v.string(),
+  signedAt: v.number(),
+});
+
+export const SIGNATURE_ROLE_LABELS: Record<SignatureRole, string> = {
+  paciente: "Paciente",
+  aluno: "Aluno(a)",
+  professor: "Professor(a)",
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Sinais vitais — obrigatórios em cada procedimento/consulta
+// ────────────────────────────────────────────────────────────────────────────
+export interface VitalSigns {
+  bloodPressure: string; // "120x80" mmHg
+  heartRate: number; // bpm
+  respiratoryRate: number; // irpm
+  temperature: number; // °C
+  oxygenSaturation: number; // %
+}
+
+export const vitalSignsValidator = v.object({
+  bloodPressure: v.string(),
+  heartRate: v.number(),
+  respiratoryRate: v.number(),
+  temperature: v.number(),
+  oxygenSaturation: v.number(),
+});
+
+export const emptyVitalSigns = (): VitalSigns => ({
+  bloodPressure: "",
+  heartRate: 0,
+  respiratoryRate: 0,
+  temperature: 0,
+  oxygenSaturation: 0,
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Procedimentos / anotações (um por consulta, com sinais vitais e assinaturas)
 // ────────────────────────────────────────────────────────────────────────────
 export interface ProcedureNote {
   id: string;
@@ -194,6 +250,8 @@ export interface ProcedureNote {
   description: string;
   tooth?: string;
   date?: string;
+  vitalSigns: VitalSigns;
+  signatures: Signature[];
   status: TreatmentStatus;
   createdBy: Id<"users">;
   createdByName: string;
@@ -206,6 +264,8 @@ export const procedureValidator = v.object({
   description: v.string(),
   tooth: v.optional(v.string()),
   date: v.optional(v.string()),
+  vitalSigns: vitalSignsValidator,
+  signatures: v.array(signatureValidator),
   status: treatmentStatusValidator,
   createdBy: v.id("users"),
   createdByName: v.string(),
@@ -357,35 +417,6 @@ export function oLearyIndex(teeth: PlaqueTooth[]): {
     total,
   };
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Assinaturas — ordem: paciente → aluno → professor
-// ────────────────────────────────────────────────────────────────────────────
-export const SIGNATURE_ROLES = ["paciente", "aluno", "professor"] as const;
-export type SignatureRole = (typeof SIGNATURE_ROLES)[number];
-export const signatureRoleValidator = v.union(
-  ...SIGNATURE_ROLES.map((r) => v.literal(r)),
-);
-
-export interface Signature {
-  role: SignatureRole;
-  name: string;
-  dataUrl: string;
-  signedAt: number;
-}
-
-export const signatureValidator = v.object({
-  role: signatureRoleValidator,
-  name: v.string(),
-  dataUrl: v.string(),
-  signedAt: v.number(),
-});
-
-export const SIGNATURE_ROLE_LABELS: Record<SignatureRole, string> = {
-  paciente: "Paciente",
-  aluno: "Aluno(a)",
-  professor: "Professor(a)",
-};
 
 // ────────────────────────────────────────────────────────────────────────────
 // Status genéricos
