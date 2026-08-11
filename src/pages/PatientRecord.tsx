@@ -260,6 +260,7 @@ export default function PatientRecord() {
               canEdit={permissions.canEdit}
               canApprove={permissions.canApprove}
               currentUserId={user?._id}
+              currentUserName={user?.name}
             />
           </TabsContent>
           <TabsContent value="anexos" className="mt-4">
@@ -1012,12 +1013,14 @@ function ProceduresTab({
   canEdit,
   canApprove,
   currentUserId,
+  currentUserName,
 }: {
   patientId: never;
   procedures: any[];
   canEdit: boolean;
   canApprove: boolean;
   currentUserId?: string;
+  currentUserName?: string;
 }) {
   const saveProcedure = useMutation(api.prontuarios.saveProcedure);
   const approveProcedure = useMutation(api.prontuarios.approveProcedure);
@@ -1027,24 +1030,60 @@ function ProceduresTab({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tooth, setTooth] = useState("");
+  const [vital, setVital] = useState({
+    bloodPressure: "",
+    heartRate: "",
+    respiratoryRate: "",
+    temperature: "",
+    oxygenSaturation: "",
+  });
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const heartRate = Number(vital.heartRate);
+      const respiratoryRate = Number(vital.respiratoryRate);
+      const temperature = Number(vital.temperature);
+      const oxygenSaturation = Number(vital.oxygenSaturation);
+      if (
+        !vital.bloodPressure.trim() ||
+        !heartRate ||
+        !respiratoryRate ||
+        !temperature ||
+        !oxygenSaturation
+      ) {
+        throw new Error(
+          "Preencha todos os sinais vitais (PA, FC, FR, temperatura e SpO₂).",
+        );
+      }
       await saveProcedure({
         patientId,
         title,
         description,
         tooth: tooth || undefined,
+        vitalSigns: {
+          bloodPressure: vital.bloodPressure.trim(),
+          heartRate,
+          respiratoryRate,
+          temperature,
+          oxygenSaturation,
+        },
       });
       setTitle("");
       setDescription("");
       setTooth("");
+      setVital({
+        bloodPressure: "",
+        heartRate: "",
+        respiratoryRate: "",
+        temperature: "",
+        oxygenSaturation: "",
+      });
       toast.success(
         canApprove
-          ? "Anotação registrada."
-          : "Anotação enviada — aguardando autorização do professor.",
+          ? "Procedimento registrado."
+          : "Procedimento enviado — aguardando autorização do professor.",
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar.");
@@ -1109,6 +1148,15 @@ function ProceduresTab({
                       <p className="mt-1.5 text-xs leading-5 text-muted-foreground whitespace-pre-wrap">
                         {p.description}
                       </p>
+                      {p.vitalSigns && (
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+                          <span>PA {p.vitalSigns.bloodPressure}</span>
+                          <span>FC {p.vitalSigns.heartRate} bpm</span>
+                          <span>FR {p.vitalSigns.respiratoryRate} irpm</span>
+                          <span>Temp {p.vitalSigns.temperature}°C</span>
+                          <span>SpO₂ {p.vitalSigns.oxygenSaturation}%</span>
+                        </div>
+                      )}
                       <p className="mt-2 text-[10px] text-muted-foreground/70">
                         {p.createdByName} · {p.date}
                       </p>
@@ -1161,6 +1209,11 @@ function ProceduresTab({
                       )}
                     </div>
                   </div>
+                  <ProcedureSignatures
+                    patientId={patientId}
+                    procedure={p}
+                    currentUserName={currentUserName}
+                  />
                 </li>
               );
             })}
@@ -1200,6 +1253,78 @@ function ProceduresTab({
               placeholder="Qualquer informação necessária sobre o procedimento…"
             />
           </div>
+          <div className="grid gap-2">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Sinais vitais da consulta
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">PA (mmHg)</Label>
+                <Input
+                  className="h-9 text-xs"
+                  value={vital.bloodPressure}
+                  onChange={(e) =>
+                    setVital({ ...vital, bloodPressure: e.target.value })
+                  }
+                  placeholder="Ex.: 120x80"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">FC (bpm)</Label>
+                <Input
+                  className="h-9 text-xs"
+                  type="number"
+                  min={0}
+                  value={vital.heartRate}
+                  onChange={(e) =>
+                    setVital({ ...vital, heartRate: e.target.value })
+                  }
+                  placeholder="Ex.: 72"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">FR (irpm)</Label>
+                <Input
+                  className="h-9 text-xs"
+                  type="number"
+                  min={0}
+                  value={vital.respiratoryRate}
+                  onChange={(e) =>
+                    setVital({ ...vital, respiratoryRate: e.target.value })
+                  }
+                  placeholder="Ex.: 16"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Temperatura (°C)</Label>
+                <Input
+                  className="h-9 text-xs"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={vital.temperature}
+                  onChange={(e) =>
+                    setVital({ ...vital, temperature: e.target.value })
+                  }
+                  placeholder="Ex.: 36.5"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">SpO₂ (%)</Label>
+                <Input
+                  className="h-9 text-xs"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={vital.oxygenSaturation}
+                  onChange={(e) =>
+                    setVital({ ...vital, oxygenSaturation: e.target.value })
+                  }
+                  placeholder="Ex.: 98"
+                />
+              </div>
+            </div>
+          </div>
           <Button
             className="self-start"
             size="sm"
@@ -1211,6 +1336,166 @@ function ProceduresTab({
             Registrar
           </Button>
         </section>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Assinaturas por procedimento — paciente → aluno → professor
+// ────────────────────────────────────────────────────────────────────────────
+function ProcedureSignatures({
+  patientId,
+  procedure,
+  currentUserName,
+}: {
+  patientId: never;
+  procedure: any;
+  currentUserName?: string;
+}) {
+  const signProcedure = useMutation(api.prontuarios.signProcedure);
+  const signatures: {
+    role: string;
+    name: string;
+    dataUrl: string;
+    signedAt: number;
+  }[] = procedure.signatures ?? [];
+  const order: ("paciente" | "aluno" | "professor")[] = [
+    "paciente",
+    "aluno",
+    "professor",
+  ];
+  const current = order[signatures.length];
+  const complete = !current;
+  const [open, setOpen] = useState(false);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [name, setName] = useState(
+    current === "professor" ? currentUserName ?? "" : "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSign = async () => {
+    if (!current) return;
+    setError(null);
+    if (!name.trim()) return setError("Informe o nome de quem assina.");
+    if (!dataUrl) return setError("Desenhe a assinatura.");
+    setSaving(true);
+    try {
+      await signProcedure({
+        patientId,
+        procedureId: procedure.id,
+        role: current,
+        name: name.trim(),
+        dataUrl,
+      });
+      setDataUrl(null);
+      setName("");
+      toast.success(
+        current === "professor"
+          ? "Procedimento assinado e efetivado pelo professor."
+          : `Assinatura do(a) ${SIGNATURE_ROLE_LABELS[current]} registrada.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao assinar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t border-border/60 pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+          Assinaturas do procedimento · {signatures.length}/3
+        </p>
+        {!complete && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-2 text-[11px]"
+            onClick={() => setOpen((v) => !v)}
+          >
+            <PenLine className="size-3" />
+            {open
+              ? "Fechar"
+              : `Assinar como ${SIGNATURE_ROLE_LABELS[current]}`}
+          </Button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {order.map((role, i) => {
+          const done = i < signatures.length;
+          return (
+            <div
+              key={role}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md border px-2 py-1.5",
+                done
+                  ? "border-emerald-600/30 bg-emerald-50/40"
+                  : "border-border/60 opacity-50",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border text-[9px] font-semibold",
+                  done
+                    ? "border-emerald-600/50 text-emerald-700"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="size-2.5" /> : i + 1}
+              </div>
+              <span className="text-[10px] font-medium">
+                {SIGNATURE_ROLE_LABELS[role]}
+              </span>
+              {done ? (
+                <img
+                  src={signatures[i].dataUrl}
+                  alt={`Assinatura ${role}`}
+                  className="h-6 w-16 object-contain"
+                />
+              ) : (
+                <span className="text-[10px] text-muted-foreground">
+                  aguardando
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {open && current && (
+        <div className="mt-3 grid gap-2 rounded-md border border-border/70 bg-muted/30 p-3">
+          <div className="grid gap-1.5">
+            <Label className="text-[11px]">
+              Nome completo do(a) {SIGNATURE_ROLE_LABELS[current]}
+            </Label>
+            <Input
+              className="h-8 text-xs"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={`Nome do(a) ${SIGNATURE_ROLE_LABELS[current]}`}
+            />
+          </div>
+          <SignaturePad height={100} onChange={setDataUrl} />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <Button
+            size="sm"
+            className="self-start"
+            onClick={handleSign}
+            disabled={saving}
+          >
+            {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            <PenLine className="mr-1.5 size-3.5" />
+            Assinar e avançar
+          </Button>
+        </div>
+      )}
+      {complete && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-700">
+          <ShieldCheck className="size-3.5" />
+          Assinado por paciente, aluno(a) e professor(a).
+        </p>
       )}
     </div>
   );
