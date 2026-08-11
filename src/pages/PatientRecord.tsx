@@ -76,6 +76,9 @@ export default function PatientRecord() {
     api.prontuarios.get,
     id ? { patientId: id as never } : "skip",
   );
+  const generateUploadUrl = useMutation(api.pdf.generateUploadUrl);
+  const registerPdf = useMutation(api.pdf.register);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   if (!data) {
     return (
@@ -119,9 +122,33 @@ export default function PatientRecord() {
 
   // PDF completo do prontuário — exclusivo da administração
   const isAdmin = user?.role === "admin";
-  const handleDownloadPdf = () => {
+
+  // Mesmo fluxo de entrega dos anexos (que já funciona no ambiente): o PDF vai
+  // para o storage do Convex e a URL HTTPS é baixada via fetch+blob, com
+  // fallback de abrir em nova aba.
+  const downloadPdfFile = async (url: string, filename: string) => {
     try {
-      const result = generateProntuarioPdf({
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Falha ao baixar.");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      // fallback: se o fetch for bloqueado (CORS), abre a URL HTTPS em nova aba
+      window.open(url, "_blank", "noopener");
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setPdfBusy(true);
+    try {
+      const { blob, filename } = generateProntuarioPdf({
         patient,
         prontuario: {
           ...prontuario,
@@ -135,13 +162,27 @@ export default function PatientRecord() {
           createdAt: a.createdAt,
         })),
       });
-      toast.success(
-        result.openedTab
-          ? "PDF do prontuário gerado — salve pela nova aba aberta."
-          : "PDF do prontuário baixado.",
-      );
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/pdf" },
+        body: blob,
+      });
+      if (!res.ok) throw new Error("Falha no envio do PDF.");
+      const { storageId } = await res.json();
+      const url = await registerPdf({
+        patientId: patient._id as never,
+        storageId: storageId as never,
+        filename,
+        size: blob.size,
+      });
+      if (!url) throw new Error("Falha ao gerar o link do PDF.");
+      await downloadPdfFile(url, filename);
+      toast.success("PDF do prontuário gerado e baixado.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar o PDF.");
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -192,10 +233,15 @@ export default function PatientRecord() {
               size="sm"
               className="h-8 gap-1.5 text-xs"
               onClick={handleDownloadPdf}
+              disabled={pdfBusy}
               title="Gerar PDF completo do prontuário (somente administração)"
             >
-              <FileDown className="size-3.5" />
-              Baixar PDF
+              {pdfBusy ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FileDown className="size-3.5" />
+              )}
+              {pdfBusy ? "Gerando…" : "Baixar PDF"}
             </Button>
           )}
           {pendingTotal > 0 && !isReception && (

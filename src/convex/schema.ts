@@ -125,6 +125,20 @@ const schema = defineSchema(
       .index("by_status", ["status"])
       .index("by_patient", ["patientId"]),
 
+    // Exportações de PDF do prontuário (auditoria — somente administração)
+    pdfExports: defineTable({
+      patientId: v.id("patients"),
+      patientName: v.string(),
+      filename: v.string(),
+      size: v.number(),
+      storageId: v.id("_storage"),
+      createdBy: v.id("users"),
+      createdByName: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_patient", ["patientId"])
+      .index("by_createdAt", ["createdAt"]),
+
     // Anexos de exames e imagens (JPEG, PNG, PDF, WORD, DICOM…)
     attachments: defineTable({
       patientId: v.id("patients"),
