@@ -113,8 +113,9 @@ export const seed = mutation({
         teeth: [],
         procedures: [],
         periodontalExams: [],
-        plaqueExams: [],
-        signatures: [],
+      plaqueExams: [],
+      extraoralExams: [],
+      signatures: [],
         status: "em_andamento",
         updatedAt: now,
       });

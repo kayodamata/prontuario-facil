@@ -2,10 +2,14 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
   anamneseValidator,
+  atmAvaliacaoValidator,
   classeValidator,
   emptyAnamnese,
   emptyVitalSigns,
+  extraoralExamValidator,
+  hasExtraoralData,
   isTeacher,
+  linfonodoAchadoValidator,
   materialValidator,
   periodontalExamValidator,
   plaqueExamValidator,
@@ -13,6 +17,7 @@ import {
   treatmentTypeValidator,
   vitalSignsValidator,
   type Anamnese,
+  type ExtraoralExam,
   type PeriodontalExam,
   type PlaqueExam,
   type Signature,
@@ -49,6 +54,7 @@ async function getProntuario(ctx: Parameters<typeof requireUser>[0], patientId: 
     })),
     periodontalExams: prontuario.periodontalExams ?? [],
     plaqueExams: prontuario.plaqueExams ?? [],
+    extraoralExams: prontuario.extraoralExams ?? [],
     signatures: prontuario.signatures ?? [],
   } as Doc<"prontuarios">;
 }
@@ -107,6 +113,7 @@ export const get = query({
           procedures: [],
           periodontalExams: [],
           plaqueExams: [],
+          extraoralExams: [],
           signatures: [],
         }
       : prontuario;
@@ -703,6 +710,93 @@ export const removePlaque = mutation({
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// Exame extraoral — linfonodos + ATM (mesma aba)
+// ────────────────────────────────────────────────────────────────────────────
+
+export const saveExtraoral = mutation({
+  args: {
+    patientId: v.id("patients"),
+    date: v.string(),
+    linfonodos: v.array(linfonodoAchadoValidator),
+    atm: atmAvaliacaoValidator,
+  },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    const linfonodos = args.linfonodos.filter(
+      (l) => l.status !== "nao_examinado" || l.descricao.trim(),
+    );
+    const examDraft = { linfonodos, atm: args.atm };
+    if (!hasExtraoralData(examDraft)) {
+      throw new Error(
+        "Registre ao menos um achado: linfonodos palpáveis ou dados da ATM.",
+      );
+    }
+    const exam: ExtraoralExam = {
+      id: newId(),
+      date: args.date || new Date().toISOString().slice(0, 10),
+      linfonodos,
+      atm: args.atm,
+      status: isTeacher(user) ? "approved" : "pending",
+      createdBy: userId,
+      createdByName: user.name ?? "Usuário",
+      updatedAt: Date.now(),
+    };
+    await ctx.db.patch(prontuario._id, {
+      extraoralExams: [...(prontuario.extraoralExams ?? []), exam],
+      updatedAt: Date.now(),
+    });
+    return exam.id;
+  },
+});
+
+export const approveExtraoral = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireTeacher(ctx);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      extraoralExams: (prontuario.extraoralExams ?? []).map((e) =>
+        e.id === args.examId ? { ...e, status: "approved" as const } : e,
+      ),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const rejectExtraoral = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    await requireTeacher(ctx);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      extraoralExams: (prontuario.extraoralExams ?? []).filter(
+        (e) => e.id !== args.examId,
+      ),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const removeExtraoral = mutation({
+  args: { patientId: v.id("patients"), examId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
+    const prontuario = await getProntuario(ctx, args.patientId);
+    await ctx.db.patch(prontuario._id, {
+      extraoralExams: (prontuario.extraoralExams ?? []).filter((e) => {
+        if (e.id !== args.examId) return true;
+        if (user.role === "aluno") {
+          return !(e.createdBy === userId && e.status === "pending");
+        }
+        return false;
+      }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // Assinaturas — ordem: paciente → aluno → professor
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -755,6 +849,9 @@ export const sign = mutation({
         e.status === "pending" ? { ...e, status: "approved" as const } : e,
       );
       patch.plaqueExams = prontuario.plaqueExams.map((e) =>
+        e.status === "pending" ? { ...e, status: "approved" as const } : e,
+      );
+      patch.extraoralExams = (prontuario.extraoralExams ?? []).map((e) =>
         e.status === "pending" ? { ...e, status: "approved" as const } : e,
       );
       if (prontuario.anamneseDraft) {
