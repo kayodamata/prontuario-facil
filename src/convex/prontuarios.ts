@@ -724,7 +724,7 @@ export const saveExtraoral = mutation({
     const { userId, user } = await requireClinicalAccess(ctx, args.patientId);
     const prontuario = await getProntuario(ctx, args.patientId);
     const linfonodos = args.linfonodos.filter(
-      (l) => l.status !== "nao_examinado" || l.descricao.trim(),
+      (l) => l.status !== "nao_examinado",
     );
     const examDraft = { linfonodos, atm: args.atm };
     if (!hasExtraoralData(examDraft)) {

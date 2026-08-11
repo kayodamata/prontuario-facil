@@ -199,6 +199,14 @@ export default function PatientRecord() {
             <TabsTrigger value="identificacao">Identificação</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
             <TabsTrigger value="alergias">Alergias</TabsTrigger>
+            <TabsTrigger value="extraoral">
+              Extraoral
+              {pendingExtraoral > 0 && (
+                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
+                  ·{pendingExtraoral}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="periograma">
               Periograma
               {pendingPerio > 0 && (
@@ -212,14 +220,6 @@ export default function PatientRecord() {
               {pendingPlaque > 0 && (
                 <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
                   ·{pendingPlaque}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="extraoral">
-              Extraoral
-              {pendingExtraoral > 0 && (
-                <span className="ml-1.5" style={{ color: PENDING_COLOR }}>
-                  ·{pendingExtraoral}
                 </span>
               )}
             </TabsTrigger>
@@ -288,6 +288,15 @@ export default function PatientRecord() {
               canApprove={permissions.canApprove}
             />
           </TabsContent>
+          <TabsContent value="extraoral" className="mt-4">
+            <ExtraoralTab
+              patientId={patient._id as never}
+              exams={prontuario.extraoralExams ?? []}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+              currentUserId={user?._id}
+            />
+          </TabsContent>
           <TabsContent value="periograma" className="mt-4">
             <PeriogramaTab
               patientId={patient._id as never}
@@ -301,15 +310,6 @@ export default function PatientRecord() {
             <PlaqueTab
               patientId={patient._id as never}
               exams={prontuario.plaqueExams ?? []}
-              canEdit={permissions.canEdit}
-              canApprove={permissions.canApprove}
-              currentUserId={user?._id}
-            />
-          </TabsContent>
-          <TabsContent value="extraoral" className="mt-4">
-            <ExtraoralTab
-              patientId={patient._id as never}
-              exams={prontuario.extraoralExams ?? []}
               canEdit={permissions.canEdit}
               canApprove={permissions.canApprove}
               currentUserId={user?._id}

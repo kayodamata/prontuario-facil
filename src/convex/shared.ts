@@ -636,9 +636,6 @@ export const linfonodoStatusValidator = v.union(
   ...LINFONODO_STATUS.map((s) => v.literal(s)),
 );
 
-export const LINFONODO_LADOS = ["direita", "esquerda", "bilateral"] as const;
-export type LinfonodoLado = (typeof LINFONODO_LADOS)[number];
-
 export const LINFONODO_STATUS_LABELS: Record<LinfonodoStatus, string> = {
   nao_palpavel: "Não palpável",
   palpavel: "Palpável",
@@ -647,25 +644,18 @@ export const LINFONODO_STATUS_LABELS: Record<LinfonodoStatus, string> = {
 
 export interface LinfonodoAchado {
   grupo: string;
-  lado: LinfonodoLado;
   status: LinfonodoStatus;
-  /** tamanho, consistência, mobilidade, dor à palpação… */
-  descricao: string;
 }
 
 export const linfonodoAchadoValidator = v.object({
   grupo: v.string(),
-  lado: v.union(...LINFONODO_LADOS.map((l) => v.literal(l))),
   status: linfonodoStatusValidator,
-  descricao: v.string(),
 });
 
 export const emptyLinfonodos = (): LinfonodoAchado[] =>
   LINFONODO_GROUPS.map((g) => ({
     grupo: g,
-    lado: "bilateral",
     status: "nao_examinado",
-    descricao: "",
   }));
 
 export const ATM_RUIDOS = ["ausente", "estalo", "crepitacao"] as const;
@@ -693,11 +683,7 @@ export const ATM_DOR_MUSCULAR_LABELS: Record<string, string> = {
 export interface AtmAvaliacao {
   dorPalpacao: "ausente" | "direita" | "esquerda" | "bilateral";
   ruidos: string[];
-  aberturaMaxima: number; // mm
   desvioAbertura: "reto" | "direita" | "esquerda";
-  lateralidadeDireita: number; // mm
-  lateralidadeEsquerda: number; // mm
-  protrusao: number; // mm
   dorMuscular: string[];
   observacoes: string;
 }
@@ -710,15 +696,11 @@ export const atmAvaliacaoValidator = v.object({
     v.literal("bilateral"),
   ),
   ruidos: v.array(v.string()),
-  aberturaMaxima: v.number(),
   desvioAbertura: v.union(
     v.literal("reto"),
     v.literal("direita"),
     v.literal("esquerda"),
   ),
-  lateralidadeDireita: v.number(),
-  lateralidadeEsquerda: v.number(),
-  protrusao: v.number(),
   dorMuscular: v.array(v.string()),
   observacoes: v.string(),
 });
@@ -726,11 +708,7 @@ export const atmAvaliacaoValidator = v.object({
 export const emptyAtm = (): AtmAvaliacao => ({
   dorPalpacao: "ausente",
   ruidos: [],
-  aberturaMaxima: 0,
   desvioAbertura: "reto",
-  lateralidadeDireita: 0,
-  lateralidadeEsquerda: 0,
-  protrusao: 0,
   dorMuscular: [],
   observacoes: "",
 });
@@ -762,18 +740,14 @@ export function hasExtraoralData(exam: {
   linfonodos: LinfonodoAchado[];
   atm: AtmAvaliacao;
 }): boolean {
-  if (exam.linfonodos.some((l) => l.status !== "nao_examinado" || l.descricao.trim())) {
+  if (exam.linfonodos.some((l) => l.status !== "nao_examinado")) {
     return true;
   }
   const a = exam.atm;
   return (
     a.dorPalpacao !== "ausente" ||
     a.ruidos.some((r) => r !== "ausente") ||
-    a.aberturaMaxima > 0 ||
     a.desvioAbertura !== "reto" ||
-    a.lateralidadeDireita > 0 ||
-    a.lateralidadeEsquerda > 0 ||
-    a.protrusao > 0 ||
     a.dorMuscular.some((m) => m !== "nega") ||
     a.observacoes.trim().length > 0
   );

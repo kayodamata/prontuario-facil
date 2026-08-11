@@ -13,7 +13,6 @@ import {
   ATM_DOR_MUSCULAR_LABELS,
   ATM_RUIDOS,
   ATM_RUIDOS_LABELS,
-  LINFONODO_LADOS,
   LINFONODO_STATUS,
   LINFONODO_STATUS_LABELS,
   PENDING_COLOR,
@@ -23,6 +22,7 @@ import {
   type AtmAvaliacao,
   type ExtraoralExam,
   type LinfonodoAchado,
+  type LinfonodoStatus,
 } from "@/convex/shared";
 import {
   Check,
@@ -163,9 +163,9 @@ export function ExtraoralTab({
     setViewing(null);
   };
 
-  const updateLinfonodo = (grupo: string, patch: Partial<LinfonodoAchado>) => {
+  const updateLinfonodo = (grupo: string, status: LinfonodoStatus) => {
     setLinfonodos((prev) =>
-      prev.map((l) => (l.grupo === grupo ? { ...l, ...patch } : l)),
+      prev.map((l) => (l.grupo === grupo ? { ...l, status } : l)),
     );
   };
 
@@ -329,7 +329,8 @@ export function ExtraoralTab({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Seção Linfonodos (formulário)
+// Seção Linfonodos (formulário) — apenas estado: palpável / não palpável /
+// não examinado
 // ────────────────────────────────────────────────────────────────────────────
 
 function LinfonodosEditor({
@@ -337,7 +338,7 @@ function LinfonodosEditor({
   onChange,
 }: {
   linfonodos: LinfonodoAchado[];
-  onChange: (grupo: string, patch: Partial<LinfonodoAchado>) => void;
+  onChange: (grupo: string, status: LinfonodoStatus) => void;
 }) {
   return (
     <div>
@@ -352,81 +353,32 @@ function LinfonodosEditor({
           <div
             key={l.grupo}
             className={cn(
-              "rounded-md border border-border/70 p-3",
+              "flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 p-3",
               l.status === "palpavel" && "border-amber-500/50 bg-amber-50/40",
             )}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium">{l.grupo}</p>
-              <div className="flex gap-1">
-                {LINFONODO_STATUS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => onChange(l.grupo, { status: s })}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                      l.status === s
-                        ? s === "palpavel"
-                          ? "border-amber-600 bg-amber-600 text-white"
-                          : s === "nao_palpavel"
-                            ? "border-emerald-700 bg-emerald-700 text-white"
-                            : "border-border bg-muted text-muted-foreground"
-                        : "border-border text-muted-foreground hover:border-foreground/40",
-                    )}
-                  >
-                    {LINFONODO_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
+            <p className="text-xs font-medium">{l.grupo}</p>
+            <div className="flex gap-1">
+              {LINFONODO_STATUS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => onChange(l.grupo, s)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                    l.status === s
+                      ? s === "palpavel"
+                        ? "border-amber-600 bg-amber-600 text-white"
+                        : s === "nao_palpavel"
+                          ? "border-emerald-700 bg-emerald-700 text-white"
+                          : "border-border bg-muted text-muted-foreground"
+                      : "border-border text-muted-foreground hover:border-foreground/40",
+                  )}
+                >
+                  {LINFONODO_STATUS_LABELS[s]}
+                </button>
+              ))}
             </div>
-            {l.status !== "nao_examinado" && (
-              <div className="mt-2 grid gap-2 sm:grid-cols-[140px_1fr]">
-                <div className="grid gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    Lado
-                  </Label>
-                  <select
-                    value={l.lado}
-                    onChange={(e) =>
-                      onChange(l.grupo, {
-                        lado: e.target.value as LinfonodoAchado["lado"],
-                      })
-                    }
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs outline-none focus:border-foreground/50"
-                  >
-                    {LINFONODO_LADOS.map((ld) => (
-                      <option key={ld} value={ld}>
-                        {ld === "direita"
-                          ? "Direita"
-                          : ld === "esquerda"
-                            ? "Esquerda"
-                            : "Bilateral"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    {l.status === "palpavel"
-                      ? "Descrição (tamanho, consistência, mobilidade, dor…)"
-                      : "Observação (opcional)"}
-                  </Label>
-                  <Input
-                    className="h-8 text-xs"
-                    value={l.descricao}
-                    onChange={(e) =>
-                      onChange(l.grupo, { descricao: e.target.value })
-                    }
-                    placeholder={
-                      l.status === "palpavel"
-                        ? "Ex.: 1,5 cm, fibroelástico, móvel, indolor"
-                        : ""
-                    }
-                  />
-                </div>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -435,7 +387,7 @@ function LinfonodosEditor({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Seção ATM (formulário)
+// Seção ATM (formulário) — sem campos numéricos
 // ────────────────────────────────────────────────────────────────────────────
 
 function AtmEditor({
@@ -454,8 +406,6 @@ function AtmEditor({
       : [...atm[field], value];
     set(field, arr);
   };
-
-  const num = (v: number) => (v === 0 ? "" : String(v));
 
   return (
     <div>
@@ -498,32 +448,6 @@ function AtmEditor({
         </div>
 
         <div className="grid gap-1.5">
-          <Label className="text-xs">Abertura bucal máxima (mm)</Label>
-          <Input
-            type="number"
-            min={0}
-            className="h-8 text-xs"
-            value={num(atm.aberturaMaxima)}
-            onChange={(e) => set("aberturaMaxima", Number(e.target.value))}
-          />
-          {atm.aberturaMaxima > 0 && (
-            <p
-              className={cn(
-                "text-[11px]",
-                atm.aberturaMaxima < 35 || atm.aberturaMaxima > 45
-                  ? "font-medium text-amber-700"
-                  : "text-emerald-700",
-              )}
-            >
-              {atm.aberturaMaxima < 35
-                ? "Abertura limitada (< 35 mm)"
-                : atm.aberturaMaxima > 45
-                  ? "Abertura aumentada (> 45 mm)"
-                  : "Dentro da faixa de normalidade (35–45 mm)"}
-            </p>
-          )}
-        </div>
-        <div className="grid gap-1.5">
           <Label className="text-xs">Desvio de abertura</Label>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {(
@@ -550,52 +474,9 @@ function AtmEditor({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:col-span-2">
-          <div className="grid gap-1">
-            <Label className="text-[10px] text-muted-foreground">
-              Lateralidade direita (mm)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              className="h-8 text-xs"
-              value={num(atm.lateralidadeDireita)}
-              onChange={(e) =>
-                set("lateralidadeDireita", Number(e.target.value))
-              }
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-[10px] text-muted-foreground">
-              Lateralidade esquerda (mm)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              className="h-8 text-xs"
-              value={num(atm.lateralidadeEsquerda)}
-              onChange={(e) =>
-                set("lateralidadeEsquerda", Number(e.target.value))
-              }
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-[10px] text-muted-foreground">
-              Protrusão (mm)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              className="h-8 text-xs"
-              value={num(atm.protrusao)}
-              onChange={(e) => set("protrusao", Number(e.target.value))}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-1.5 sm:col-span-2">
+        <div className="grid gap-1.5">
           <Label className="text-xs">Dor muscular à palpação</Label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {ATM_DOR_MUSCULAR.map((m) => (
               <button
                 key={m}
@@ -657,7 +538,7 @@ function ExtraoralRead({ exam }: { exam: ExtraoralExam }) {
               <li
                 key={l.grupo}
                 className={cn(
-                  "rounded-md border border-border/60 px-3 py-2 text-xs",
+                  "flex items-center justify-between rounded-md border border-border/60 px-3 py-2 text-xs",
                   l.status === "palpavel" && "border-amber-500/50 bg-amber-50/40",
                 )}
               >
@@ -672,14 +553,6 @@ function ExtraoralRead({ exam }: { exam: ExtraoralExam }) {
                 >
                   {LINFONODO_STATUS_LABELS[l.status]}
                 </span>
-                <span className="ml-2 capitalize text-muted-foreground">
-                  {l.lado}
-                </span>
-                {l.descricao && (
-                  <span className="mt-0.5 block text-muted-foreground">
-                    {l.descricao}
-                  </span>
-                )}
               </li>
             ))}
           </ul>
@@ -717,20 +590,6 @@ function ExtraoralRead({ exam }: { exam: ExtraoralExam }) {
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Abertura máxima
-            </dt>
-            <dd
-              className={cn(
-                a.aberturaMaxima > 0 &&
-                  (a.aberturaMaxima < 35 || a.aberturaMaxima > 45) &&
-                  "font-medium text-amber-700",
-              )}
-            >
-              {a.aberturaMaxima > 0 ? `${a.aberturaMaxima} mm` : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Desvio de abertura
             </dt>
             <dd className="capitalize">
@@ -738,24 +597,6 @@ function ExtraoralRead({ exam }: { exam: ExtraoralExam }) {
                 ? "Reto"
                 : `Para a ${a.desvioAbertura}`}
             </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Lateralidade
-            </dt>
-            <dd>
-              {a.lateralidadeDireita > 0 || a.lateralidadeEsquerda > 0
-                ? `${a.lateralidadeDireita || 0} / ${
-                    a.lateralidadeEsquerda || 0
-                  } mm (dir/esq)`
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Protrusão
-            </dt>
-            <dd>{a.protrusao > 0 ? `${a.protrusao} mm` : "—"}</dd>
           </div>
           <div className="col-span-2">
             <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
