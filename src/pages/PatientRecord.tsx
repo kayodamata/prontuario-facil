@@ -49,10 +49,12 @@ import { ToothEditor } from "@/components/odontogram/ToothEditor";
 import { SignaturePad } from "@/components/SignaturePad";
 import { PeriogramaTab, PlaqueTab } from "@/components/periodontal/PeriodontalTabs";
 import { ExtraoralTab } from "@/components/extraoral/ExtraoralTabs";
+import { generateProntuarioPdf } from "@/lib/prontuarioPdf";
 import {
   ArrowLeft,
   Check,
   Download,
+  FileDown,
   FileImage,
   FileText,
   Lock,
@@ -115,6 +117,30 @@ export default function PatientRecord() {
     ? evaluateVitalSigns(latestProcedure.vitalSigns)
     : [];
 
+  // PDF completo do prontuário — exclusivo da administração
+  const isAdmin = user?.role === "admin";
+  const handleDownloadPdf = () => {
+    try {
+      generateProntuarioPdf({
+        patient,
+        prontuario: {
+          ...prontuario,
+          anamnese: { ...emptyAnamnese(), ...prontuario.anamnese },
+        },
+        attachments: attachments.map((a) => ({
+          name: a.name,
+          kind: a.kind,
+          status: a.status,
+          uploadedByName: a.uploadedByName,
+          createdAt: a.createdAt,
+        })),
+      });
+      toast.success("PDF do prontuário gerado.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar o PDF.");
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
       {/* Header */}
@@ -155,19 +181,33 @@ export default function PatientRecord() {
             </p>
           </div>
         </div>
-        {pendingTotal > 0 && !isReception && (
-          <Badge
-            className="text-[10px]"
-            style={{
-              color: PENDING_COLOR,
-              borderColor: PENDING_COLOR,
-              background: "transparent",
-            }}
-            variant="outline"
-          >
-            {pendingTotal} alteração(ões) aguardando professor
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={handleDownloadPdf}
+              title="Gerar PDF completo do prontuário (somente administração)"
+            >
+              <FileDown className="size-3.5" />
+              Baixar PDF
+            </Button>
+          )}
+          {pendingTotal > 0 && !isReception && (
+            <Badge
+              className="text-[10px]"
+              style={{
+                color: PENDING_COLOR,
+                borderColor: PENDING_COLOR,
+                background: "transparent",
+              }}
+              variant="outline"
+            >
+              {pendingTotal} alteração(ões) aguardando professor
+            </Badge>
+          )}
+        </div>
       </div>
 
       {!isReception && latestVitalAlerts.length > 0 && (
