@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
+  ANMNESE_ALERGIA_OPTIONS,
+  ANMNESE_GESTACAO_OPTIONS,
   ANMNESE_HABITOS_OPTIONS,
   ANMNESE_MEDICO_OPTIONS,
   APPOINTMENT_STATUS_LABELS,
@@ -37,6 +39,7 @@ import {
   TREATMENT_LABELS,
   emptyAnamnese,
   evaluateVitalSigns,
+  type Alergias,
   type Anamnese,
   type Material,
   type VitalSignAlert,
@@ -191,6 +194,7 @@ export default function PatientRecord() {
           <TabsList className="h-9 justify-start overflow-x-auto">
             <TabsTrigger value="identificacao">Identificação</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
+            <TabsTrigger value="alergias">Alergias</TabsTrigger>
             <TabsTrigger value="periograma">
               Periograma
               {pendingPerio > 0 && (
@@ -246,6 +250,20 @@ export default function PatientRecord() {
           </TabsContent>
           <TabsContent value="anamnese" className="mt-4">
             <AnamneseTab
+              patientId={patient._id as never}
+              anamnese={{ ...emptyAnamnese(), ...prontuario.anamnese }}
+              draft={
+                prontuario.anamneseDraft
+                  ? { ...emptyAnamnese(), ...prontuario.anamneseDraft }
+                  : undefined
+              }
+              status={prontuario.anamneseStatus}
+              canEdit={permissions.canEdit}
+              canApprove={permissions.canApprove}
+            />
+          </TabsContent>
+          <TabsContent value="alergias" className="mt-4">
+            <AlergiasTab
               patientId={patient._id as never}
               anamnese={{ ...emptyAnamnese(), ...prontuario.anamnese }}
               draft={
@@ -784,7 +802,287 @@ function AnamneseTab({
   );
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Alergias — aba própria: "nega" ou lista as alergias do paciente
+// ────────────────────────────────────────────────────────────────────────────
+function AlergiasTab({
+  patientId,
+  anamnese,
+  draft,
+  status,
+  canEdit,
+  canApprove,
+}: {
+  patientId: never;
+  anamnese: Anamnese;
+  draft?: Anamnese;
+  status: "approved" | "pending";
+  canEdit: boolean;
+  canApprove: boolean;
+}) {
+  const saveAnamnese = useMutation(api.prontuarios.saveAnamnese);
+  const approveAnamnese = useMutation(api.prontuarios.approveAnamnese);
+  const rejectAnamnese = useMutation(api.prontuarios.rejectAnamnese);
+
+  const effective = status === "pending" && draft ? draft : anamnese;
+  const alergias: Alergias = effective.alergias ?? {
+    nega: false,
+    itens: [],
+    especificar: "",
+  };
+  const hasAllergies =
+    !alergias.nega &&
+    (alergias.itens.length > 0 || alergias.especificar.length > 0);
+  const allergyList = [
+    ...alergias.itens,
+    ...(alergias.especificar ? [alergias.especificar] : []),
+  ];
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<Alergias | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    setForm({
+      nega: alergias.nega,
+      itens: [...alergias.itens],
+      especificar: alergias.especificar,
+    });
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!form) return;
+    setSaving(true);
+    try {
+      await saveAnamnese({
+        patientId,
+        anamnese: { ...effective, alergias: form },
+      });
+      setEditing(false);
+      toast.success(
+        canApprove
+          ? "Alergias salvas."
+          : "Alergias enviadas — aguardando autorização do professor.",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleItem = (value: string) => {
+    setForm((f) => {
+      if (!f) return f;
+      const itens = f.itens.includes(value)
+        ? f.itens.filter((x) => x !== value)
+        : [...f.itens, value];
+      return { ...f, itens, nega: false };
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {status === "pending" && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3"
+          style={{
+            borderColor: PENDING_COLOR,
+            background: `${PENDING_COLOR}0d`,
+          }}
+        >
+          <p className="text-xs" style={{ color: PENDING_COLOR }}>
+            Alterações nas alergias ainda não autorizadas.
+          </p>
+          {canApprove && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => approveAnamnese({ patientId })}
+              >
+                <Check className="mr-1.5 size-3.5" />
+                Autorizar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => rejectAnamnese({ patientId })}
+              >
+                <X className="mr-1.5 size-3.5" />
+                Recusar
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {editing && form ? (
+        <section className="grid gap-4 rounded-lg border border-border/70 bg-card p-5">
+          <div className="grid gap-2">
+            <Label className="text-xs">O(a) paciente apresenta alergias?</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({ ...form, nega: true, itens: [], especificar: "" })
+                }
+                className={cn(
+                  "flex-1 rounded-lg border px-4 py-2.5 text-left text-sm transition-colors",
+                  form.nega
+                    ? "border-emerald-600/60 bg-emerald-50/60 text-emerald-800"
+                    : "border-border text-muted-foreground hover:border-foreground/40",
+                )}
+              >
+                <span className="font-medium">Nega</span>
+                <span className="mt-0.5 block text-[11px] opacity-70">
+                  Não tem alergias conhecidas
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, nega: false })}
+                className={cn(
+                  "flex-1 rounded-lg border px-4 py-2.5 text-left text-sm transition-colors",
+                  !form.nega
+                    ? "border-amber-600/60 bg-amber-50/60 text-amber-800"
+                    : "border-border text-muted-foreground hover:border-foreground/40",
+                )}
+              >
+                <span className="font-medium">Apresenta</span>
+                <span className="mt-0.5 block text-[11px] opacity-70">
+                  Marque abaixo qual(is)
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {!form.nega && (
+            <>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Qual(is) alergia(s)?</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {ANMNESE_ALERGIA_OPTIONS.map((opt) => {
+                    const isOther = opt.startsWith("Outra");
+                    const active =
+                      form.itens.includes(opt) ||
+                      (isOther && form.especificar.length > 0);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleItem(opt)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs transition-colors",
+                          active
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border hover:border-foreground/50",
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Detalhes / outras alergias</Label>
+                <Textarea
+                  className="min-h-16 text-xs"
+                  value={form.especificar}
+                  onChange={(e) =>
+                    setForm({ ...form, especificar: e.target.value })
+                  }
+                  placeholder="Ex.: reação anafilática à penicilina aos 10 anos; alergia a dipirona…"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(false)}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+              Salvar
+            </Button>
+          </div>
+        </section>
+      ) : (
+        <section
+          className={cn(
+            "grid gap-3 rounded-lg border p-5",
+            hasAllergies
+              ? "border-amber-500/40 bg-amber-50/50"
+              : "border-border/70 bg-card",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {hasAllergies ? (
+                <TriangleAlert className="size-4 text-amber-700" />
+              ) : (
+                <Check className="size-4 text-emerald-600" />
+              )}
+              <p
+                className={cn(
+                  "text-sm font-medium",
+                  hasAllergies ? "text-amber-800" : "text-emerald-800",
+                )}
+              >
+                {hasAllergies ? "Alergias: SIM" : "Alergias: NEGA"}
+              </p>
+            </div>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={startEdit}
+              >
+                <PenLine className="mr-1.5 size-3" />
+                Editar
+              </Button>
+            )}
+          </div>
+          {hasAllergies ? (
+            <div className="flex flex-wrap gap-1.5">
+              {allergyList.map((a) => (
+                <Badge
+                  key={a}
+                  className="bg-amber-600/90 text-white text-[11px] font-normal"
+                >
+                  {a}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Paciente nega alergias conhecidas.
+            </p>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 function AnamneseRead({ anamnese }: { anamnese: Anamnese }) {
+  const alergias = anamnese.alergias ?? {
+    nega: false,
+    itens: [] as string[],
+    especificar: "",
+  };
+  const hasAllergies =
+    !alergias.nega &&
+    (alergias.itens.length > 0 || alergias.especificar.length > 0);
   return (
     <section className="grid gap-5 rounded-lg border border-border/70 bg-card p-5">
       <div className="grid gap-1.5">
@@ -818,6 +1116,50 @@ function AnamneseRead({ anamnese }: { anamnese: Anamnese }) {
       <div className="grid gap-1.5">
         <Label className="text-xs text-muted-foreground">Medicamentos em uso</Label>
         <p className="text-sm">{anamnese.medicamentos || "—"}</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">Alergias</Label>
+        {hasAllergies ? (
+          <div className="flex flex-wrap gap-1.5">
+            {alergias.itens.map((a) => (
+              <Badge
+                key={a}
+                className="bg-amber-600/90 text-white text-[11px] font-normal"
+              >
+                {a}
+              </Badge>
+            ))}
+            {alergias.especificar && (
+              <Badge className="bg-amber-600/90 text-white text-[11px] font-normal">
+                {alergias.especificar}
+              </Badge>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-emerald-700">NEGA</p>
+        )}
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">
+          Cirurgias anteriores
+        </Label>
+        <p className="text-sm">{anamnese.cirurgiasAnteriores || "—"}</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">Hospitalizações</Label>
+        <p className="text-sm">{anamnese.hospitalizacoes || "—"}</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">
+          Tendência a sangramento
+        </Label>
+        <p className="text-sm">{anamnese.sangramento || "—"}</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">
+          Gestação / lactação
+        </Label>
+        <p className="text-sm">{anamnese.gestacao || "—"}</p>
       </div>
       <div className="grid gap-1.5">
         <Label className="text-xs text-muted-foreground">Hábitos</Label>
@@ -897,6 +1239,58 @@ function AnamneseForm({
           onChange={(e) => set("medicamentos", e.target.value)}
         />
       </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Cirurgias anteriores</Label>
+        <Input
+          className="h-9 text-xs"
+          value={form.cirurgiasAnteriores}
+          onChange={(e) => set("cirurgiasAnteriores", e.target.value)}
+          placeholder="Ex.: exodontia do 48 (2021)"
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Hospitalizações</Label>
+        <Input
+          className="h-9 text-xs"
+          value={form.hospitalizacoes}
+          onChange={(e) => set("hospitalizacoes", e.target.value)}
+          placeholder="Ex.: internação por pneumonia (2019)"
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">
+          Tendência a sangramento / distúrbios hemorrágicos
+        </Label>
+        <Input
+          className="h-9 text-xs"
+          value={form.sangramento}
+          onChange={(e) => set("sangramento", e.target.value)}
+          placeholder="Ex.: nega; sangramento prolongado após corte…"
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Gestação / lactação</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {ANMNESE_GESTACAO_OPTIONS.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => set("gestacao", form.gestacao === opt ? "" : opt)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs transition-colors",
+                form.gestacao === opt
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border hover:border-foreground/50",
+              )}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="rounded-md border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+        As alergias são registradas na aba <span className="font-medium">Alergias</span>.
+      </p>
       <CheckboxChips
         label="Hábitos (clique para marcar)"
         options={ANMNESE_HABITOS_OPTIONS}

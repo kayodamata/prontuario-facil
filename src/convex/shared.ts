@@ -126,22 +126,45 @@ export const toothRecordValidator = v.object({
 // ────────────────────────────────────────────────────────────────────────────
 // Anamnese (estrutura clicável + campo final "especificar")
 // ────────────────────────────────────────────────────────────────────────────
+export interface Alergias {
+  /** true = paciente nega alergias; false = apresenta (preencher itens) */
+  nega: boolean;
+  itens: string[];
+  especificar: string;
+}
+
 export interface Anamnese {
   queixaPrincipal: string;
   hda: string;
   historicoMedico: string[];
   medicamentos: string;
+  alergias: Alergias;
+  cirurgiasAnteriores: string;
+  hospitalizacoes: string;
+  sangramento: string;
+  gestacao: string;
   habitos: string[];
   examesAnteriores: string;
   especificar: string;
   observacoes: string;
 }
 
+export const alergiasValidator = v.object({
+  nega: v.boolean(),
+  itens: v.array(v.string()),
+  especificar: v.string(),
+});
+
 export const anamneseValidator = v.object({
   queixaPrincipal: v.optional(v.string()),
   hda: v.optional(v.string()),
   historicoMedico: v.optional(v.array(v.string())),
   medicamentos: v.optional(v.string()),
+  alergias: v.optional(alergiasValidator),
+  cirurgiasAnteriores: v.optional(v.string()),
+  hospitalizacoes: v.optional(v.string()),
+  sangramento: v.optional(v.string()),
+  gestacao: v.optional(v.string()),
   habitos: v.optional(v.array(v.string())),
   examesAnteriores: v.optional(v.string()),
   especificar: v.optional(v.string()),
@@ -153,6 +176,11 @@ export const emptyAnamnese = (): Anamnese => ({
   hda: "",
   historicoMedico: [],
   medicamentos: "",
+  alergias: { nega: false, itens: [], especificar: "" },
+  cirurgiasAnteriores: "",
+  hospitalizacoes: "",
+  sangramento: "",
+  gestacao: "",
   habitos: [],
   examesAnteriores: "",
   especificar: "",
@@ -183,6 +211,23 @@ export const ANMNESE_HABITOS_OPTIONS = [
   "Dieta cariogênica",
   "Respiração bucal",
   "Uso de aparelho ortodôntico",
+] as const;
+
+export const ANMNESE_ALERGIA_OPTIONS = [
+  "Penicilina / antibióticos",
+  "Dipirona",
+  "AAS / anti-inflamatórios",
+  "Anestésicos locais",
+  "Látex",
+  "Corantes / iodo",
+  "Alimento",
+  "Outra (especificar)",
+] as const;
+
+export const ANMNESE_GESTACAO_OPTIONS = [
+  "Não se aplica",
+  "Gestante",
+  "Amamentando",
 ] as const;
 
 // ────────────────────────────────────────────────────────────────────────────
