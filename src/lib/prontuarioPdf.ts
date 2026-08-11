@@ -258,7 +258,10 @@ function vitalSignsLine(p: ProcedureNote): string {
 // Gerador principal
 // ────────────────────────────────────────────────────────────────────────────
 
-export function generateProntuarioPdf(input: ProntuarioPdfInput): void {
+export function generateProntuarioPdf(input: ProntuarioPdfInput): {
+  /** true = o PDF abriu em uma nova aba (o usuário salva pelo visualizador). */
+  openedTab: boolean;
+} {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.setLineHeightFactor(1.15);
   const ctx: PdfCtx = { doc, y: 0 };
@@ -565,6 +568,24 @@ export function generateProntuarioPdf(input: ProntuarioPdfInput): void {
     doc.text(`Página ${i} de ${pages}`, PAGE_W - MARGIN, FOOTER_Y + 5, { align: "right" });
   }
 
+  // Downloads via <a download> são bloqueados em previews com iframe restrito
+  // (sem allow-downloads). Abrir o blob em uma nova aba é o caminho confiável:
+  // o visualizador do navegador exibe o PDF e permite salvar. Se o pop-up for
+  // bloqueado, tenta o download direto como fallback.
   const safeName = patient.fullName.replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 60);
-  doc.save(`prontuario_${safeName || "paciente"}.pdf`);
+  const filename = `prontuario_${safeName || "paciente"}.pdf`;
+  const blob = doc.output("blob");
+  const url = URL.createObjectURL(blob);
+  const openedTab = Boolean(window.open(url, "_blank"));
+  if (!openedTab) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  // mantém o blob vivo para a nova aba carregar; libera depois
+  setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  return { openedTab };
 }

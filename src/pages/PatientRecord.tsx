@@ -121,7 +121,7 @@ export default function PatientRecord() {
   const isAdmin = user?.role === "admin";
   const handleDownloadPdf = () => {
     try {
-      generateProntuarioPdf({
+      const result = generateProntuarioPdf({
         patient,
         prontuario: {
           ...prontuario,
@@ -135,7 +135,11 @@ export default function PatientRecord() {
           createdAt: a.createdAt,
         })),
       });
-      toast.success("PDF do prontuário gerado.");
+      toast.success(
+        result.openedTab
+          ? "PDF do prontuário gerado — salve pela nova aba aberta."
+          : "PDF do prontuário baixado.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar o PDF.");
     }
