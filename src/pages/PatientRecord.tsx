@@ -36,8 +36,10 @@ import {
   SIGNATURE_ROLE_LABELS,
   TREATMENT_LABELS,
   emptyAnamnese,
+  evaluateVitalSigns,
   type Anamnese,
   type Material,
+  type VitalSignAlert,
 } from "@/convex/shared";
 import { Odontogram } from "@/components/odontogram/Odontogram";
 import { ToothEditor } from "@/components/odontogram/ToothEditor";
@@ -55,6 +57,7 @@ import {
   Plus,
   ShieldCheck,
   Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,6 +99,14 @@ export default function PatientRecord() {
     pendingAttachments.length + pendingProcedures.length + pendingTeeth +
     pendingPerio + pendingPlaque +
     (prontuario.anamneseStatus === "pending" ? 1 : 0);
+
+  // Alerta de sinais vitais alterados na consulta mais recente
+  const latestProcedure = [...prontuario.procedures].sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  )[0];
+  const latestVitalAlerts = latestProcedure?.vitalSigns
+    ? evaluateVitalSigns(latestProcedure.vitalSigns)
+    : [];
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -151,6 +162,27 @@ export default function PatientRecord() {
           </Badge>
         )}
       </div>
+
+      {!isReception && latestVitalAlerts.length > 0 && (
+        <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-50/60 px-4 py-3">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-amber-800">
+              Sinais vitais alterados na última consulta
+              {latestProcedure?.date && (
+                <span className="ml-1.5 font-normal text-amber-700/80">
+                  · {latestProcedure.date}
+                </span>
+              )}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-amber-800/90">
+              {latestVitalAlerts
+                .map((a) => `${a.display} — ${a.message}`)
+                .join(" · ")}
+            </p>
+          </div>
+        </div>
+      )}
 
       {isReception ? (
         <ReceptionLockView patient={patient} attachments={attachments} />
@@ -1039,6 +1071,15 @@ function ProceduresTab({
   });
   const [saving, setSaving] = useState(false);
 
+  // Feedback ao vivo enquanto os sinais vitais são digitados
+  const formAlerts = evaluateVitalSigns({
+    bloodPressure: vital.bloodPressure,
+    heartRate: Number(vital.heartRate),
+    respiratoryRate: Number(vital.respiratoryRate),
+    temperature: Number(vital.temperature),
+    oxygenSaturation: Number(vital.oxygenSaturation),
+  });
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1114,6 +1155,16 @@ function ProceduresTab({
             {sorted.map((p) => {
               const pending = p.status === "pending";
               const isMine = currentUserId && p.createdBy === currentUserId;
+              const vitalAlerts = p.vitalSigns
+                ? evaluateVitalSigns(p.vitalSigns)
+                : [];
+              const vitalTone = (key: VitalSignAlert["key"]) => {
+                const a = vitalAlerts.find((x) => x.key === key);
+                if (!a) return "";
+                return a.severity === "danger"
+                  ? "text-red-700 font-medium"
+                  : "text-amber-700 font-medium";
+              };
               return (
                 <li
                   key={p.id}
@@ -1150,11 +1201,27 @@ function ProceduresTab({
                       </p>
                       {p.vitalSigns && (
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground">
-                          <span>PA {p.vitalSigns.bloodPressure}</span>
-                          <span>FC {p.vitalSigns.heartRate} bpm</span>
-                          <span>FR {p.vitalSigns.respiratoryRate} irpm</span>
-                          <span>Temp {p.vitalSigns.temperature}°C</span>
-                          <span>SpO₂ {p.vitalSigns.oxygenSaturation}%</span>
+                          {vitalAlerts.length > 0 && (
+                            <span className="flex items-center gap-1 font-medium text-amber-700">
+                              <TriangleAlert className="size-3" />
+                              Sinais alterados
+                            </span>
+                          )}
+                          <span className={vitalTone("bloodPressure")}>
+                            PA {p.vitalSigns.bloodPressure}
+                          </span>
+                          <span className={vitalTone("heartRate")}>
+                            FC {p.vitalSigns.heartRate} bpm
+                          </span>
+                          <span className={vitalTone("respiratoryRate")}>
+                            FR {p.vitalSigns.respiratoryRate} irpm
+                          </span>
+                          <span className={vitalTone("temperature")}>
+                            Temp {p.vitalSigns.temperature}°C
+                          </span>
+                          <span className={vitalTone("oxygenSaturation")}>
+                            SpO₂ {p.vitalSigns.oxygenSaturation}%
+                          </span>
                         </div>
                       )}
                       <p className="mt-2 text-[10px] text-muted-foreground/70">
@@ -1324,6 +1391,14 @@ function ProceduresTab({
                 />
               </div>
             </div>
+            {formAlerts.length > 0 && (
+              <p className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-50/60 px-2.5 py-1.5 text-[11px] leading-5 text-amber-800">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                {formAlerts
+                  .map((a) => `${a.label}: ${a.display} — ${a.message}`)
+                  .join(" · ")}
+              </p>
+            )}
           </div>
           <Button
             className="self-start"

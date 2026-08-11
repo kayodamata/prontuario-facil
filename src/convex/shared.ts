@@ -241,6 +241,154 @@ export const emptyVitalSigns = (): VitalSigns => ({
   oxygenSaturation: 0,
 });
 
+/** Alerta clínico gerado a partir de sinais vitais fora da faixa de referência. */
+export interface VitalSignAlert {
+  key:
+    | "bloodPressure"
+    | "heartRate"
+    | "respiratoryRate"
+    | "temperature"
+    | "oxygenSaturation";
+  label: string;
+  display: string;
+  message: string;
+  severity: "warning" | "danger";
+}
+
+/**
+ * Avalia sinais vitais contra faixas de referência (adulto) e retorna os
+ * alertas clínicos encontrados. Valores vazios/zero são ignorados.
+ */
+export function evaluateVitalSigns(vs: VitalSigns): VitalSignAlert[] {
+  const alerts: VitalSignAlert[] = [];
+
+  // Pressão arterial — "120x80", "120/80"…
+  const bp = vs.bloodPressure.match(/(\d+)\s*[xX/]\s*(\d+)/);
+  if (bp) {
+    const sys = Number(bp[1]);
+    const dia = Number(bp[2]);
+    if (sys >= 140 || dia >= 90) {
+      alerts.push({
+        key: "bloodPressure",
+        label: "Pressão arterial",
+        display: `${sys}x${dia} mmHg`,
+        message: "Pressão alta (hipertensão)",
+        severity: "danger",
+      });
+    } else if (sys >= 130 || dia >= 85) {
+      alerts.push({
+        key: "bloodPressure",
+        label: "Pressão arterial",
+        display: `${sys}x${dia} mmHg`,
+        message: "Pressão elevada",
+        severity: "warning",
+      });
+    } else if (sys < 90 || dia < 60) {
+      alerts.push({
+        key: "bloodPressure",
+        label: "Pressão arterial",
+        display: `${sys}x${dia} mmHg`,
+        message: "Pressão baixa (hipotensão)",
+        severity: "warning",
+      });
+    }
+  }
+
+  // Frequência cardíaca — 60–100 bpm
+  if (vs.heartRate > 0) {
+    if (vs.heartRate > 100) {
+      alerts.push({
+        key: "heartRate",
+        label: "Frequência cardíaca",
+        display: `${vs.heartRate} bpm`,
+        message: "Taquicardia (FC alta)",
+        severity: "warning",
+      });
+    } else if (vs.heartRate < 60) {
+      alerts.push({
+        key: "heartRate",
+        label: "Frequência cardíaca",
+        display: `${vs.heartRate} bpm`,
+        message: "Bradicardia (FC baixa)",
+        severity: "warning",
+      });
+    }
+  }
+
+  // Frequência respiratória — 12–20 irpm
+  if (vs.respiratoryRate > 0) {
+    if (vs.respiratoryRate > 20) {
+      alerts.push({
+        key: "respiratoryRate",
+        label: "Frequência respiratória",
+        display: `${vs.respiratoryRate} irpm`,
+        message: "Taquipneia (FR alta)",
+        severity: "warning",
+      });
+    } else if (vs.respiratoryRate < 12) {
+      alerts.push({
+        key: "respiratoryRate",
+        label: "Frequência respiratória",
+        display: `${vs.respiratoryRate} irpm`,
+        message: "Bradipneia (FR baixa)",
+        severity: "warning",
+      });
+    }
+  }
+
+  // Temperatura axilar — 36,0–37,5 °C
+  if (vs.temperature > 0) {
+    if (vs.temperature >= 37.8) {
+      alerts.push({
+        key: "temperature",
+        label: "Temperatura",
+        display: `${vs.temperature}°C`,
+        message: "Febre",
+        severity: "danger",
+      });
+    } else if (vs.temperature >= 37.5) {
+      alerts.push({
+        key: "temperature",
+        label: "Temperatura",
+        display: `${vs.temperature}°C`,
+        message: "Temperatura elevada (subfebril)",
+        severity: "warning",
+      });
+    } else if (vs.temperature < 35) {
+      alerts.push({
+        key: "temperature",
+        label: "Temperatura",
+        display: `${vs.temperature}°C`,
+        message: "Hipotermia",
+        severity: "warning",
+      });
+    }
+  }
+
+  // Saturação de oxigênio — ≥ 95%
+  if (vs.oxygenSaturation > 0) {
+    if (vs.oxygenSaturation < 90) {
+      alerts.push({
+        key: "oxygenSaturation",
+        label: "Saturação de oxigênio",
+        display: `${vs.oxygenSaturation}%`,
+        message: "Hipóxia grave",
+        severity: "danger",
+      });
+    } else if (vs.oxygenSaturation < 95) {
+      alerts.push({
+        key: "oxygenSaturation",
+        label: "Saturação de oxigênio",
+        display: `${vs.oxygenSaturation}%`,
+        message: "Saturação baixa (hipóxia)",
+        severity: "warning",
+      });
+    }
+  }
+
+  return alerts;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Procedimentos / anotações (um por consulta, com sinais vitais e assinaturas)
 // ────────────────────────────────────────────────────────────────────────────
